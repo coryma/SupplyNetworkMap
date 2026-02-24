@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>65.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>CM Supply Network Graph</masterLabel>
+    <description>Visualize upstream/downstream account relations generated from CM prompt-template JSON.</description>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Account</object>
+            </objects>
+            <property
+                name="maxNodes"
+                type="Integer"
+                label="Max Nodes"
+                description="Maximum nodes to return before graph truncation."
+                default="150"
+            />
+            <property
+                name="displayMode"
+                type="String"
+                label="Display Mode"
+                description="network keeps compact relationship layout; story uses annotated lane presentation."
+                datasource="network,story"
+                default="story"
+            />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

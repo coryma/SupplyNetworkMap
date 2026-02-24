@@ -1,0 +1,85 @@
+<template>
+    <lightning-card title="CM Supply Network Graph" icon-name="utility:graph">
+        <div class="toolbar slds-p-horizontal_small slds-p-top_small slds-grid slds-wrap slds-gutters_small">
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                <lightning-combobox
+                    name="graphFilter"
+                    label="View"
+                    value={selectedFilter}
+                    options={filterOptions}
+                    onchange={handleFilterChange}
+                >
+                </lightning-combobox>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 toolbar-action">
+                <lightning-button
+                    label="Refresh Graph"
+                    variant="neutral"
+                    onclick={handleRefreshClick}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+            <template if:true={isTruncated}>
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 truncation-note">
+                    Showing first {nodeCount} nodes (capped for performance).
+                </div>
+            </template>
+        </div>
+
+        <template if:true={isRefreshingInBackground}>
+            <div class="state-message info">顯示上次分析結果，背景更新中。</div>
+        </template>
+
+        <template if:true={isLoading}>
+            <lightning-spinner alternative-text="Loading supply network graph" size="small"></lightning-spinner>
+            <div class="state-message info">{loadingStatusMessage}</div>
+        </template>
+
+        <template if:true={errorMessage}>
+            <div class="state-message error">{errorMessage}</div>
+        </template>
+
+        <template if:true={showEmptyState}>
+            <div class="state-message">此帳戶目前沒有可顯示的上下游關係資料。</div>
+        </template>
+
+        <template if:true={coverageNote}>
+            <div class="state-message info">{coverageNote}</div>
+        </template>
+
+        <template if:true={generatedAtLabel}>
+            <div class="state-message subtle">Last updated: {generatedAtLabel}</div>
+        </template>
+
+        <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
+            <span class="legend-item">
+                <span class="legend-swatch role-design"></span>
+                IC Design
+            </span>
+            <span class="legend-item">
+                <span class="legend-swatch role-manufacturing"></span>
+                Manufacturing
+            </span>
+            <span class="legend-item">
+                <span class="legend-swatch role-channel"></span>
+                Channel / ODM
+            </span>
+            <span class="legend-item">
+                <span class="legend-swatch role-customer"></span>
+                End Customers
+            </span>
+        </div>
+
+        <div class="graph-shell slds-p-horizontal_small slds-p-bottom_small">
+            <div class="graph" data-id="graph" lwc:dom="manual"></div>
+            <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
+                <div class="node-tooltip-title" data-id="tooltip-title"></div>
+                <div class="node-tooltip-meta">
+                    <span class="node-tooltip-label">Role</span>
+                    <span data-id="tooltip-role"></span>
+                </div>
+                <div class="node-tooltip-note" data-id="tooltip-note"></div>
+            </div>
+        </div>
+    </lightning-card>
+</template>

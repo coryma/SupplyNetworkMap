@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier>uVYQ2H6oM2bMUh1zQwWk2oL7Yxv8F4yJc9nPqRtSdaE=_1</activeVersionIdentifier>
+    <developerName>CM_Account_Supply_Network_Discovery</developerName>
+    <masterLabel>CM - Account 上下游關係擷取</masterLabel>
+    <relatedEntity>Account</relatedEntity>
+    <relatedField>Account.Description</relatedField>
+    <templateVersions>
+        <content>你是「企業供應鏈關係擷取引擎」。
+
+目標：
+根據目標公司（Root Account）資料，找出上游廠商、下游客戶與主要競爭者，並輸出可直接被 Apex 解析與建圖的嚴格 JSON。
+
+輸入公司資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_account_description: {!$Input:Account.Description}
+- root_account_region: {!$Input:Account.BillingCountry}
+- focus_company_name: 啟碁科技 WNC
+
+硬性規則：
+1. 只輸出 JSON，不可輸出 markdown、註解或解釋文字。
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 若你無法輸出符合本規格的 JSON，請改為輸出：
+   {"error":"SCHEMA_VALIDATION_FAILED","reason":"string"}
+4. confidence 必須介於 0.0 到 1.0，低於 0.55 的關係不要輸出到 relationships。
+5. company_domain 為必填，格式為網域（例如 wnc.com.tw），不可包含 http、https、路徑；若無法判斷網域，該公司放入 unresolved_companies。
+6. 先以 company_domain 去重，再以 company_name 去重。
+7. 不可將 root_account 自己放進 relationships。
+8. 每筆 relationships.evidence 至少 1 條且不可空字串。
+9. 文字描述欄位（role、evidence、detailed_analysis、coverage_note、reason）必須使用繁體中文。
+10. focus_company_analysis.relationship_category 必須是以下 enum 之一：
+   UPSTREAM_DOWNSTREAM | CHANNEL | CO_DEVELOPMENT | COMPETITOR | NO_DIRECT_RELATION
+11. relationships.direction 只能是：
+    UPSTREAM | DOWNSTREAM | COMPETITOR
+12. relationships.source_type 只能是：
+    PUBLIC_INFO | INFERRED
+13. 只允許以下頂層鍵：
+    schema_version, root_account, relationships, focus_company_analysis, unresolved_companies, summary, quality
+14. 禁止輸出舊欄位 upstream、downstream、competitors（若出現視為格式錯誤）。
+15. 必須執行 must-include 清單檢查：Qualcomm、WNC、TSMC、ASE，並在 quality.must_include_check 全部回報 found 與 direction。
+16. 限定場景為 5G FWA、企業級 Wi-Fi AP、車聯網模組供應鏈；請優先輸出與此場景直接相關的公司與關係。
+17. 若 must-include 任何一項未命中，必須在 quality.coverage_gaps 說明缺口原因，且 unresolved_companies 需列出對應公司。
+
+relation_type enum（依 direction 使用）：
+- UPSTREAM: Supplier | Manufacturer | Foundry | OSAT | Distributor | Technology Partner | Other
+- DOWNSTREAM: Customer | ODM | OEM | Channel Partner | Brand Customer | Enterprise Customer | Telecom Operator | Automaker | Other
+- COMPETITOR: Direct Competitor | Partial Competitor | Other
+
+請輸出以下 JSON 結構（欄位不可缺少）：
+{
+  "schema_version": "2.0",
+  "root_account": {
+    "name": "string",
+    "website": "string",
+    "domain": "string",
+    "core_positioning": "string"
+  },
+  "relationships": [
+    {
+      "company_name": "string",
+      "company_website": "string",
+      "company_domain": "string",
+      "direction": "UPSTREAM | DOWNSTREAM | COMPETITOR",
+      "relation_type": "string",
+      "role": "string",
+      "products": ["string"],
+      "confidence": 0.0,
+      "source_type": "PUBLIC_INFO | INFERRED",
+      "evidence": ["string"],
+      "is_focus_company": false
+    }
+  ],
+  "focus_company_analysis": {
+    "focus_company_name": "啟碁科技 WNC",
+    "focus_company_domain": "wnc.com.tw",
+    "matched_in_relationships": true,
+    "has_direct_relationship": true,
+    "relationship_category": "UPSTREAM_DOWNSTREAM | CHANNEL | CO_DEVELOPMENT | COMPETITOR | NO_DIRECT_RELATION",
+    "involved_products_or_technologies": ["string"],
+    "detailed_analysis": "string"
+  },
+  "unresolved_companies": [
+    {
+      "company_name": "string",
+      "reason": "string"
+    }
+  ],
+  "summary": {
+    "upstream_count": 0,
+    "downstream_count": 0,
+    "competitor_count": 0,
+    "coverage_note": "string"
+  },
+  "quality": {
+    "min_confidence_applied": 0.55,
+    "dedupe_key": "company_domain",
+    "must_include_targets": ["Qualcomm","WNC","TSMC","ASE"],
+    "coverage_gaps": ["string"],
+    "must_include_check": [
+      {
+        "company_name": "啟碁科技 WNC",
+        "found": true,
+        "direction": "DOWNSTREAM | UPSTREAM | COMPETITOR | UNRESOLVED"
+      }
+    ]
+  }
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultGPT4Omni</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>uVYQ2H6oM2bMUh1zQwWk2oL7Yxv8F4yJc9nPqRtSdaE=_1</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__fieldCompletion</type>
+    <visibility>Global</visibility>
+</GenAiPromptTemplate>

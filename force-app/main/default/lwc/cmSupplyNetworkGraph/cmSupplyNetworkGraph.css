@@ -1,0 +1,168 @@
+:host {
+    --sn-border: #d8dde6;
+    --sn-text-primary: #032d60;
+    --sn-text-subtle: #5c6b80;
+    --sn-surface: #ffffff;
+    --sn-surface-alt: #f8f9fb;
+    --sn-accent: #0176d3;
+    display: block;
+}
+
+.toolbar {
+    align-items: flex-end;
+}
+
+.toolbar-action {
+    display: flex;
+    align-items: flex-end;
+}
+
+.truncation-note {
+    color: var(--sn-text-subtle);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding-top: 1.5rem;
+}
+
+.state-message {
+    padding: 0.5rem 1rem 0.75rem;
+    color: var(--sn-text-primary);
+}
+
+.state-message.info {
+    color: var(--sn-accent);
+    font-size: 0.8rem;
+}
+
+.state-message.subtle {
+    color: var(--sn-text-subtle);
+    font-size: 0.75rem;
+}
+
+.state-message.error {
+    color: #ba0517;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    align-items: center;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #3e3e3c;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 0.78rem;
+    height: 0.78rem;
+    border-radius: 0.2rem;
+    border: 1px solid #c9c9c9;
+}
+
+.legend-swatch.role-design {
+    background: #eaf5fe;
+}
+
+.legend-swatch.role-manufacturing {
+    background: #f4f7fb;
+}
+
+.legend-swatch.role-channel {
+    background: #edf7f2;
+}
+
+.legend-swatch.role-customer {
+    background: #fef6f0;
+}
+
+.graph-shell {
+    min-height: 540px;
+    position: relative;
+}
+
+.graph {
+    width: 100%;
+    height: 760px;
+    border: 1px solid var(--sn-border);
+    border-radius: 0.75rem;
+    background:
+        repeating-linear-gradient(0deg, rgba(1, 118, 211, 0.04) 0, rgba(1, 118, 211, 0.04) 1px, transparent 1px, transparent 34px),
+        repeating-linear-gradient(90deg, rgba(1, 118, 211, 0.04) 0, rgba(1, 118, 211, 0.04) 1px, transparent 1px, transparent 34px),
+        linear-gradient(180deg, var(--sn-surface) 0%, var(--sn-surface-alt) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(2, 45, 96, 0.03),
+        0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.node-tooltip {
+    position: fixed;
+    left: -10000px;
+    top: -10000px;
+    width: min(300px, calc(100vw - 24px));
+    padding: 0.65rem 0.75rem 0.72rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--sn-border);
+    background: #ffffff;
+    color: #032d60;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+        opacity 120ms ease,
+        transform 120ms ease;
+    box-shadow: 0 8px 24px rgba(24, 24, 24, 0.14);
+}
+
+.node-tooltip.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.node-tooltip-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.node-tooltip-meta {
+    margin-top: 0.35rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: #5c6b80;
+}
+
+.node-tooltip-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--sn-accent);
+}
+
+.node-tooltip-note {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #3e3e3c;
+}
+
+@media (max-width: 768px) {
+    .graph {
+        height: 600px;
+    }
+
+    .legend-item {
+        font-size: 0.7rem;
+    }
+}
