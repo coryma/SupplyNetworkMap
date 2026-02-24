@@ -36,7 +36,7 @@ private class CMSupplyNetworkGraphControllerTest {
 
         Map<String, CMSupplyNetworkGraphController.NodeDto> nodeByLabel = mapNodesByLabel(response.nodes);
         System.assertEquals(quincy.Id, nodeByLabel.get('Quincy').accountId);
-        System.assertEquals(-2, nodeByLabel.get('TSMC').signedLevel);
+        System.assertEquals(-1, nodeByLabel.get('TSMC').signedLevel);
         System.assertEquals(2, nodeByLabel.get('WNC').signedLevel);
         System.assertEquals(3, nodeByLabel.get('Verizon').signedLevel);
         System.assertEquals(true, nodeByLabel.get('WNC').accountId != null, 'Demo nodes should resolve to Account Id for click-through.');
@@ -66,7 +66,29 @@ private class CMSupplyNetworkGraphControllerTest {
         System.assertEquals('DEMO_FIXED', response.dataSource);
         System.assertEquals(1, response.nodeCount);
         System.assertEquals(0, response.edgeCount);
-        System.assert(response.coverageNote.contains('Quincy'));
+        System.assert(response.coverageNote.contains('Demo'));
+    }
+
+    @IsTest
+    static void getGraph_demoMemberReturnsRelationshipGraph() {
+        Account wnc = [SELECT Id, Name FROM Account WHERE Name = 'WNC' LIMIT 1];
+
+        Test.startTest();
+        CMSupplyNetworkGraphController.GraphResponse response = CMSupplyNetworkGraphController.getGraph(wnc.Id, 30);
+        Test.stopTest();
+
+        System.assertEquals('DEMO_FIXED', response.dataSource);
+        System.assertEquals(12, response.nodeCount, 'Demo member should still see full demo relationship graph.');
+        System.assertEquals(12, response.edgeCount);
+
+        Map<String, CMSupplyNetworkGraphController.NodeDto> nodeByLabel = mapNodesByLabel(response.nodes);
+        System.assertEquals(true, nodeByLabel.containsKey('Quincy'));
+        System.assertEquals(true, nodeByLabel.containsKey('Verizon'));
+        System.assertEquals(true, nodeByLabel.containsKey('TSMC'));
+        System.assertEquals(0, nodeByLabel.get('WNC').signedLevel);
+        System.assertEquals(-2, nodeByLabel.get('Quincy').signedLevel, 'Upstream nodes should become negative levels from current root.');
+        System.assertEquals(1, nodeByLabel.get('Verizon').signedLevel, 'Direct downstream from current root should be level 1.');
+        System.assertEquals(-3, nodeByLabel.get('TSMC').signedLevel, 'Farther upstream should have deeper negative levels.');
     }
 
     @IsTest

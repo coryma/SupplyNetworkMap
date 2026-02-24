@@ -1,7 +1,6 @@
 public with sharing class CMSupplyNetworkGraphController {
     private static final Integer DEFAULT_MAX_NODES = 150;
     private static final Integer ABSOLUTE_MAX_NODES = 500;
-    private static final String DEMO_ROOT_ACCOUNT_NAME = 'quincy';
     private static final String DEMO_TEMPLATE_NAME = 'DEMO_QUINCY_V1';
     private static final List<String> DEMO_ACCOUNT_NAMES = new List<String>{
         'Quincy',
@@ -17,6 +16,7 @@ public with sharing class CMSupplyNetworkGraphController {
         'Ford',
         'General Motors'
     };
+    private static final Set<String> DEMO_ACCOUNT_NAME_KEYS = buildDemoAccountNameKeys();
 
     @AuraEnabled(cacheable=false)
     public static GraphResponse getGraph(Id rootAccountId, Integer maxNodes) {
@@ -28,14 +28,14 @@ public with sharing class CMSupplyNetworkGraphController {
 
         Integer nodeCap = normalizeMaxNodes(maxNodes);
         Account rootAccount = loadRootAccount(rootAccountId);
-        if (!isDemoRoot(rootAccount)) {
+        if (!isDemoAccount(rootAccount)) {
             return buildNonDemoResponse(rootAccount);
         }
-        return buildQuincyDemoResponse(rootAccount, nodeCap);
+        return buildDemoGraphResponse(rootAccount, nodeCap);
     }
 
-    private static Boolean isDemoRoot(Account rootAccount) {
-        return normalizeName(rootAccount.Name) == DEMO_ROOT_ACCOUNT_NAME;
+    private static Boolean isDemoAccount(Account rootAccount) {
+        return DEMO_ACCOUNT_NAME_KEYS.contains(normalizeName(rootAccount.Name));
     }
 
     private static GraphResponse buildNonDemoResponse(Account rootAccount) {
@@ -44,7 +44,7 @@ public with sharing class CMSupplyNetworkGraphController {
         response.promptTemplateName = DEMO_TEMPLATE_NAME;
         response.dataSource = 'DEMO_FIXED';
         response.generatedAt = Datetime.now();
-        response.coverageNote = '此版本為 Quincy 固定示意圖。請切換到 Quincy Account 查看完整上下游關係。';
+        response.coverageNote = '此版本為固定 Demo 供應鏈圖。請切換到 Demo 清單內帳戶查看完整上下游關係。';
 
         NodeDto rootNode = buildDemoNode(
             rootAccount,
@@ -55,7 +55,7 @@ public with sharing class CMSupplyNetworkGraphController {
             0,
             'ROOT',
             '目前帳戶',
-            '僅 Quincy 提供完整 Demo 供應鏈視圖。'
+            '此帳戶不在 Demo 清單中。'
         );
         response.nodes.add(rootNode);
         response.nodeCount = response.nodes.size();
@@ -63,26 +63,98 @@ public with sharing class CMSupplyNetworkGraphController {
         return response;
     }
 
-    private static GraphResponse buildQuincyDemoResponse(Account rootAccount, Integer nodeCap) {
+    private static GraphResponse buildDemoGraphResponse(Account rootAccount, Integer nodeCap) {
         GraphResponse response = new GraphResponse();
         response.rootId = String.valueOf(rootAccount.Id);
         response.promptTemplateName = DEMO_TEMPLATE_NAME;
         response.dataSource = 'DEMO_FIXED';
         response.generatedAt = Datetime.now();
 
-        Map<String, Account> accountByName = new Map<String, Account>();
+        Map<String, Account> accountByNameKey = new Map<String, Account>();
         for (Account accountRecord : [
             SELECT Id, Name, Type
             FROM Account
             WHERE Name IN :DEMO_ACCOUNT_NAMES
             LIMIT 2000
         ]) {
-            accountByName.put(accountRecord.Name, accountRecord);
+            accountByNameKey.put(normalizeName(accountRecord.Name), accountRecord);
         }
 
-        List<NodeDto> orderedNodes = new List<NodeDto>();
-        Map<String, NodeDto> nodeByNameKey = new Map<String, NodeDto>();
+        List<DemoNodeDefinition> nodeDefinitions = getDemoNodeDefinitions();
+        List<DemoEdgeDefinition> edgeDefinitions = getDemoEdgeDefinitions();
+        Map<String, DemoNodeDefinition> nodeDefinitionByNameKey = new Map<String, DemoNodeDefinition>();
+        for (DemoNodeDefinition nodeDefinition : nodeDefinitions) {
+            nodeDefinitionByNameKey.put(normalizeName(nodeDefinition.accountName), nodeDefinition);
+        }
 
+        Map<String, List<String>> outgoingByNode = new Map<String, List<String>>();
+        Map<String, List<String>> incomingByNode = new Map<String, List<String>>();
+        Set<String> allNodeNameKeys = new Set<String>();
+        for (DemoNodeDefinition nodeDefinition : nodeDefinitions) {
+            String nameKey = normalizeName(nodeDefinition.accountName);
+            allNodeNameKeys.add(nameKey);
+            outgoingByNode.put(nameKey, new List<String>());
+            incomingByNode.put(nameKey, new List<String>());
+        }
+        for (DemoEdgeDefinition edgeDefinition : edgeDefinitions) {
+            String sourceNameKey = normalizeName(edgeDefinition.sourceName);
+            String targetNameKey = normalizeName(edgeDefinition.targetName);
+            allNodeNameKeys.add(sourceNameKey);
+            allNodeNameKeys.add(targetNameKey);
+            if (!outgoingByNode.containsKey(sourceNameKey)) {
+                outgoingByNode.put(sourceNameKey, new List<String>());
+            }
+            if (!incomingByNode.containsKey(targetNameKey)) {
+                incomingByNode.put(targetNameKey, new List<String>());
+            }
+            if (!incomingByNode.containsKey(sourceNameKey)) {
+                incomingByNode.put(sourceNameKey, new List<String>());
+            }
+            if (!outgoingByNode.containsKey(targetNameKey)) {
+                outgoingByNode.put(targetNameKey, new List<String>());
+            }
+            outgoingByNode.get(sourceNameKey).add(targetNameKey);
+            incomingByNode.get(targetNameKey).add(sourceNameKey);
+        }
+
+        String rootNameKey = normalizeName(rootAccount.Name);
+        Map<String, Integer> downstreamDistanceByNode = computeShortestDistance(outgoingByNode, rootNameKey);
+        Map<String, Integer> upstreamDistanceByNode = computeShortestDistance(incomingByNode, rootNameKey);
+
+        Set<String> includedNameKeys = new Set<String>{ rootNameKey };
+        for (String nameKey : allNodeNameKeys) {
+            if (downstreamDistanceByNode.containsKey(nameKey) || upstreamDistanceByNode.containsKey(nameKey)) {
+                includedNameKeys.add(nameKey);
+            }
+        }
+
+        Map<String, Integer> signedLevelByNameKey = new Map<String, Integer>();
+        for (String nameKey : includedNameKeys) {
+            if (nameKey == rootNameKey) {
+                signedLevelByNameKey.put(nameKey, 0);
+                continue;
+            }
+            Integer downstreamDistance = downstreamDistanceByNode.get(nameKey);
+            Integer upstreamDistance = upstreamDistanceByNode.get(nameKey);
+            if (downstreamDistance == null && upstreamDistance == null) {
+                continue;
+            }
+            if (downstreamDistance != null && upstreamDistance == null) {
+                signedLevelByNameKey.put(nameKey, downstreamDistance);
+                continue;
+            }
+            if (upstreamDistance != null && downstreamDistance == null) {
+                signedLevelByNameKey.put(nameKey, -upstreamDistance);
+                continue;
+            }
+            signedLevelByNameKey.put(nameKey, downstreamDistance <= upstreamDistance ? downstreamDistance : -upstreamDistance);
+        }
+
+        List<String> orderedNodeKeys = new List<String>();
+        orderedNodeKeys.addAll(signedLevelByNameKey.keySet());
+        orderedNodeKeys.sort(new NodeDistanceComparator(signedLevelByNameKey, nodeDefinitionByNameKey, accountByNameKey));
+
+        Map<String, NodeDto> nodeByNameKey = new Map<String, NodeDto>();
         NodeDto rootNode = buildDemoNode(
             rootAccount,
             rootAccount.Name,
@@ -91,69 +163,54 @@ public with sharing class CMSupplyNetworkGraphController {
             0,
             0,
             'ROOT',
-            'IC 設計原廠',
-            'Quincy Demo 固定供應鏈主節點。'
+            nodeDefinitionByNameKey.containsKey(rootNameKey) ? nodeDefinitionByNameKey.get(rootNameKey).roleLabel : '核心節點',
+            '固定 Demo 供應鏈主節點。'
         );
-        orderedNodes.add(rootNode);
-        nodeByNameKey.put(normalizeName(rootNode.label), rootNode);
+        nodeByNameKey.put(rootNameKey, rootNode);
 
-        List<DemoNodeDefinition> nodeDefinitions = new List<DemoNodeDefinition>{
-            new DemoNodeDefinition('TSMC', -2, 2, null, 'UPSTREAM', '晶圓代工 (Foundry)', '提供先進製程晶圓代工服務。'),
-            new DemoNodeDefinition('ASE', -1, 1, null, 'UPSTREAM', '封裝與測試 (OSAT)', '提供封裝與測試能力。'),
-            new DemoNodeDefinition('Amkor', -1, 1, null, 'UPSTREAM', '封裝與測試 (OSAT)', '支援後段封裝與測試產能。'),
-            new DemoNodeDefinition('WPG', 1, null, 1, 'DOWNSTREAM', 'IC 通路代理商', '提供通路供貨與 FAE 支援。'),
-            new DemoNodeDefinition('WT Microelectronics', 1, null, 1, 'DOWNSTREAM', 'IC 通路代理商', '提供通路供貨與技術服務。'),
-            new DemoNodeDefinition('WNC', 2, null, 2, 'DOWNSTREAM', '網通與車用設備 ODM/JDM', '負責系統整合與最終組裝。'),
-            new DemoNodeDefinition('Verizon', 3, null, 3, 'DOWNSTREAM', '電信營運商', '5G FWA 家用路由器導入客戶。'),
-            new DemoNodeDefinition('AT&T', 3, null, 3, 'DOWNSTREAM', '電信營運商', '5G FWA 家用路由器導入客戶。'),
-            new DemoNodeDefinition('T-Mobile US', 3, null, 3, 'DOWNSTREAM', '電信營運商', '5G FWA 家用路由器導入客戶。'),
-            new DemoNodeDefinition('Ford', 3, null, 3, 'DOWNSTREAM', '車廠客戶', '車聯網模組導入客戶。'),
-            new DemoNodeDefinition('General Motors', 3, null, 3, 'DOWNSTREAM', '車廠客戶', '車聯網模組導入客戶。')
-        };
-
-        for (DemoNodeDefinition nodeDefinition : nodeDefinitions) {
-            if (orderedNodes.size() >= nodeCap) {
+        for (String nameKey : orderedNodeKeys) {
+            if (nameKey == rootNameKey) {
+                continue;
+            }
+            if (nodeByNameKey.size() >= nodeCap) {
                 response.truncated = true;
                 break;
             }
 
-            Account matchedAccount = accountByName.get(nodeDefinition.accountName);
+            Integer signedLevel = signedLevelByNameKey.get(nameKey);
+            if (signedLevel == null) {
+                continue;
+            }
+
+            DemoNodeDefinition nodeDefinition = nodeDefinitionByNameKey.get(nameKey);
+            Account matchedAccount = accountByNameKey.get(nameKey);
+            String fallbackLabel = matchedAccount == null
+                ? (nodeDefinition == null ? nameKey : nodeDefinition.accountName)
+                : matchedAccount.Name;
+            Integer upstreamDepth = signedLevel < 0 ? Math.abs(signedLevel) : null;
+            Integer downstreamDepth = signedLevel > 0 ? signedLevel : null;
+            String relationshipDirection = signedLevel < 0 ? 'UPSTREAM' : 'DOWNSTREAM';
             NodeDto node = buildDemoNode(
                 matchedAccount,
-                nodeDefinition.accountName,
+                fallbackLabel,
                 false,
-                nodeDefinition.signedLevel,
-                nodeDefinition.upstreamDepth,
-                nodeDefinition.downstreamDepth,
-                nodeDefinition.relationshipDirection,
-                nodeDefinition.roleLabel,
-                nodeDefinition.noteText
+                signedLevel,
+                upstreamDepth,
+                downstreamDepth,
+                relationshipDirection,
+                nodeDefinition == null ? '關聯節點' : nodeDefinition.roleLabel,
+                nodeDefinition == null ? '固定 Demo 供應鏈節點。' : nodeDefinition.noteText
             );
-            orderedNodes.add(node);
-            nodeByNameKey.put(normalizeName(node.label), node);
+            nodeByNameKey.put(nameKey, node);
         }
-
-        List<DemoEdgeDefinition> edgeDefinitions = new List<DemoEdgeDefinition>{
-            new DemoEdgeDefinition('TSMC', 'Quincy', 'Foundry', 'UPSTREAM'),
-            new DemoEdgeDefinition('ASE', 'Quincy', 'OSAT', 'UPSTREAM'),
-            new DemoEdgeDefinition('Amkor', 'Quincy', 'OSAT', 'UPSTREAM'),
-            new DemoEdgeDefinition('Quincy', 'WPG', 'Distributor', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('Quincy', 'WT Microelectronics', 'Distributor', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WPG', 'WNC', 'Channel Partner', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WT Microelectronics', 'WNC', 'Channel Partner', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WNC', 'Verizon', 'Telecom Operator', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WNC', 'AT&T', 'Telecom Operator', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WNC', 'T-Mobile US', 'Telecom Operator', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WNC', 'Ford', 'Automaker', 'DOWNSTREAM'),
-            new DemoEdgeDefinition('WNC', 'General Motors', 'Automaker', 'DOWNSTREAM')
-        };
 
         Integer edgeIndex = 0;
         for (DemoEdgeDefinition edgeDefinition : edgeDefinitions) {
-            NodeDto sourceNode = nodeByNameKey.get(normalizeName(edgeDefinition.sourceName));
-            NodeDto targetNode = nodeByNameKey.get(normalizeName(edgeDefinition.targetName));
+            String sourceNameKey = normalizeName(edgeDefinition.sourceName);
+            String targetNameKey = normalizeName(edgeDefinition.targetName);
+            NodeDto sourceNode = nodeByNameKey.get(sourceNameKey);
+            NodeDto targetNode = nodeByNameKey.get(targetNameKey);
             if (sourceNode == null || targetNode == null) {
-                response.truncated = true;
                 continue;
             }
 
@@ -169,19 +226,91 @@ public with sharing class CMSupplyNetworkGraphController {
         }
 
         List<String> missingAccounts = new List<String>();
-        for (NodeDto node : orderedNodes) {
+        for (NodeDto node : nodeByNameKey.values()) {
             if (!node.isRoot && node.accountId == null) {
                 missingAccounts.add(node.label);
             }
         }
 
         response.coverageNote = missingAccounts.isEmpty()
-            ? 'Quincy 固定示意圖：上游製造與封測 -> 通路 -> ODM/JDM -> 電信與車廠客戶。'
-            : 'Quincy 固定示意圖已載入，但以下節點缺少 Account 無法點擊：' + String.join(missingAccounts, '、');
-        response.nodes.addAll(orderedNodes);
+            ? '固定 Demo 供應鏈圖：以 ' + rootAccount.Name + ' 為核心顯示上下游關係。'
+            : '固定 Demo 圖已載入，但以下節點缺少 Account 無法點擊：' + String.join(missingAccounts, '、');
+        response.nodes.addAll(nodeByNameKey.values());
         response.nodeCount = response.nodes.size();
         response.edgeCount = response.edges.size();
         return response;
+    }
+
+    private static Set<String> buildDemoAccountNameKeys() {
+        Set<String> nameKeys = new Set<String>();
+        for (String accountName : DEMO_ACCOUNT_NAMES) {
+            nameKeys.add(normalizeName(accountName));
+        }
+        return nameKeys;
+    }
+
+    private static List<DemoNodeDefinition> getDemoNodeDefinitions() {
+        return new List<DemoNodeDefinition>{
+            new DemoNodeDefinition('Quincy', 'IC 設計原廠', '核心設計與平台供應節點。'),
+            new DemoNodeDefinition('TSMC', '晶圓代工 (Foundry)', '提供先進製程晶圓代工服務。'),
+            new DemoNodeDefinition('ASE', '封裝與測試 (OSAT)', '提供封裝與測試能力。'),
+            new DemoNodeDefinition('Amkor', '封裝與測試 (OSAT)', '支援後段封裝與測試產能。'),
+            new DemoNodeDefinition('WPG', 'IC 通路代理商', '提供通路供貨與 FAE 支援。'),
+            new DemoNodeDefinition('WT Microelectronics', 'IC 通路代理商', '提供通路供貨與技術服務。'),
+            new DemoNodeDefinition('WNC', '網通與車用設備 ODM/JDM', '負責系統整合與最終組裝。'),
+            new DemoNodeDefinition('Verizon', '電信營運商', '5G FWA 家用路由器導入客戶。'),
+            new DemoNodeDefinition('AT&T', '電信營運商', '5G FWA 家用路由器導入客戶。'),
+            new DemoNodeDefinition('T-Mobile US', '電信營運商', '5G FWA 家用路由器導入客戶。'),
+            new DemoNodeDefinition('Ford', '車廠客戶', '車聯網模組導入客戶。'),
+            new DemoNodeDefinition('General Motors', '車廠客戶', '車聯網模組導入客戶。')
+        };
+    }
+
+    private static List<DemoEdgeDefinition> getDemoEdgeDefinitions() {
+        return new List<DemoEdgeDefinition>{
+            new DemoEdgeDefinition('TSMC', 'Quincy', 'Foundry', 'UPSTREAM'),
+            new DemoEdgeDefinition('ASE', 'Quincy', 'OSAT', 'UPSTREAM'),
+            new DemoEdgeDefinition('Amkor', 'Quincy', 'OSAT', 'UPSTREAM'),
+            new DemoEdgeDefinition('Quincy', 'WPG', 'Distributor', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('Quincy', 'WT Microelectronics', 'Distributor', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WPG', 'WNC', 'Channel Partner', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WT Microelectronics', 'WNC', 'Channel Partner', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WNC', 'Verizon', 'Telecom Operator', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WNC', 'AT&T', 'Telecom Operator', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WNC', 'T-Mobile US', 'Telecom Operator', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WNC', 'Ford', 'Automaker', 'DOWNSTREAM'),
+            new DemoEdgeDefinition('WNC', 'General Motors', 'Automaker', 'DOWNSTREAM')
+        };
+    }
+
+    private static Map<String, Integer> computeShortestDistance(Map<String, List<String>> adjacencyByNode, String rootNameKey) {
+        Map<String, Integer> distanceByNode = new Map<String, Integer>();
+        if (String.isBlank(rootNameKey) || !adjacencyByNode.containsKey(rootNameKey)) {
+            return distanceByNode;
+        }
+
+        List<String> pendingNodes = new List<String>{ rootNameKey };
+        distanceByNode.put(rootNameKey, 0);
+
+        Integer index = 0;
+        while (index < pendingNodes.size()) {
+            String currentNode = pendingNodes[index];
+            Integer currentDistance = distanceByNode.get(currentNode);
+            index++;
+
+            List<String> neighborNodes = adjacencyByNode.get(currentNode);
+            if (neighborNodes == null) {
+                continue;
+            }
+            for (String neighborNode : neighborNodes) {
+                if (distanceByNode.containsKey(neighborNode)) {
+                    continue;
+                }
+                distanceByNode.put(neighborNode, currentDistance + 1);
+                pendingNodes.add(neighborNode);
+            }
+        }
+        return distanceByNode;
     }
 
     private static Integer normalizeMaxNodes(Integer requestedMaxNodes) {
@@ -264,27 +393,15 @@ public with sharing class CMSupplyNetworkGraphController {
 
     private class DemoNodeDefinition {
         String accountName;
-        Integer signedLevel;
-        Integer upstreamDepth;
-        Integer downstreamDepth;
-        String relationshipDirection;
         String roleLabel;
         String noteText;
 
         DemoNodeDefinition(
             String accountNameValue,
-            Integer signedLevelValue,
-            Integer upstreamDepthValue,
-            Integer downstreamDepthValue,
-            String relationshipDirectionValue,
             String roleLabelValue,
             String noteTextValue
         ) {
             accountName = accountNameValue;
-            signedLevel = signedLevelValue;
-            upstreamDepth = upstreamDepthValue;
-            downstreamDepth = downstreamDepthValue;
-            relationshipDirection = relationshipDirectionValue;
             roleLabel = roleLabelValue;
             noteText = noteTextValue;
         }
@@ -301,6 +418,46 @@ public with sharing class CMSupplyNetworkGraphController {
             targetName = targetNameValue;
             relationType = relationTypeValue;
             direction = directionValue;
+        }
+    }
+
+    private class NodeDistanceComparator implements System.Comparator<String> {
+        private Map<String, Integer> signedLevelByNameKey;
+        private Map<String, DemoNodeDefinition> nodeDefinitionByNameKey;
+        private Map<String, Account> accountByNameKey;
+
+        NodeDistanceComparator(
+            Map<String, Integer> signedLevelByNameKeyValue,
+            Map<String, DemoNodeDefinition> nodeDefinitionByNameKeyValue,
+            Map<String, Account> accountByNameKeyValue
+        ) {
+            signedLevelByNameKey = signedLevelByNameKeyValue;
+            nodeDefinitionByNameKey = nodeDefinitionByNameKeyValue;
+            accountByNameKey = accountByNameKeyValue;
+        }
+
+        public Integer compare(String leftNameKey, String rightNameKey) {
+            Integer leftLevel = signedLevelByNameKey.get(leftNameKey);
+            Integer rightLevel = signedLevelByNameKey.get(rightNameKey);
+            Integer leftAbs = leftLevel == null ? 99999 : Math.abs(leftLevel);
+            Integer rightAbs = rightLevel == null ? 99999 : Math.abs(rightLevel);
+            if (leftAbs != rightAbs) {
+                return leftAbs < rightAbs ? -1 : 1;
+            }
+
+            String leftLabel = resolveLabel(leftNameKey);
+            String rightLabel = resolveLabel(rightNameKey);
+            return leftLabel.toLowerCase().compareTo(rightLabel.toLowerCase());
+        }
+
+        private String resolveLabel(String nameKey) {
+            if (accountByNameKey.containsKey(nameKey)) {
+                return accountByNameKey.get(nameKey).Name;
+            }
+            if (nodeDefinitionByNameKey.containsKey(nameKey)) {
+                return nodeDefinitionByNameKey.get(nameKey).accountName;
+            }
+            return nameKey;
         }
     }
 
