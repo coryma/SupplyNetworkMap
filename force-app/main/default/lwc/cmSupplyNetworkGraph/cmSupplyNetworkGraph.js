@@ -31,9 +31,9 @@ const CYTOSCAPE_STYLE = [
     {
         selector: 'node',
         style: {
-            'background-color': '#ffffff',
+            'background-color': '#6b7280',
             label: 'data(label)',
-            color: '#032d60',
+            color: '#e2e8f0',
             'font-size': 13,
             'font-weight': 600,
             'text-wrap': 'wrap',
@@ -45,7 +45,7 @@ const CYTOSCAPE_STYLE = [
             height: 96,
             shape: 'round-rectangle',
             'border-width': 2,
-            'border-color': '#d8dde6',
+            'border-color': '#475569',
             'text-outline-width': 0,
             'overlay-opacity': 0
         }
@@ -53,17 +53,17 @@ const CYTOSCAPE_STYLE = [
     {
         selector: 'node.entity',
         style: {
-            'background-color': '#ffffff',
-            color: '#032d60',
+            'background-color': '#e2e8f0',
+            color: '#111827',
             'font-size': 15
         }
     },
     {
         selector: 'node.root',
         style: {
-            'background-color': '#eaf5fe',
-            'border-color': '#0176d3',
-            color: '#032d60',
+            'background-color': '#fef3c7',
+            'border-color': '#f59e0b',
+            color: '#111827',
             width: 220,
             height: 110,
             'border-width': 2,
@@ -74,34 +74,34 @@ const CYTOSCAPE_STYLE = [
     {
         selector: 'node.role-manufacturing',
         style: {
-            'background-color': '#f4f7fb',
-            'border-color': '#8da2bc'
+            'background-color': '#e0f2fe',
+            'border-color': '#38bdf8'
         }
     },
     {
         selector: 'node.role-channel',
         style: {
-            'background-color': '#edf7f2',
-            'border-color': '#2e844a'
+            'background-color': '#dcfce7',
+            'border-color': '#22c55e'
         }
     },
     {
         selector: 'node.role-customer',
         style: {
-            'background-color': '#fef6f0',
-            'border-color': '#dd7a01'
+            'background-color': '#f3e8ff',
+            'border-color': '#c026d3'
         }
     },
     {
         selector: 'node.lane',
         style: {
-            'background-color': '#f8f9fb',
-            'background-opacity': 0.95,
-            'border-color': '#d8dde6',
+            'background-color': '#4b5563',
+            'background-opacity': 0.7,
+            'border-color': '#94a3b8',
             'border-width': 1,
             width: 'data(width)',
             height: 'data(height)',
-            color: '#3e3e3c',
+            color: '#e2e8f0',
             'font-size': 16,
             'font-weight': 700,
             'text-max-width': 320,
@@ -114,15 +114,15 @@ const CYTOSCAPE_STYLE = [
     {
         selector: 'node.lane-upstream',
         style: {
-            'background-color': '#f4f7fb',
-            'background-opacity': 0.95
+            'background-color': '#5b6168',
+            'background-opacity': 0.78
         }
     },
     {
         selector: 'node.lane-downstream',
         style: {
-            'background-color': '#f9f6fb',
-            'background-opacity': 0.95
+            'background-color': '#5f666d',
+            'background-opacity': 0.8
         }
     },
     {
@@ -130,11 +130,11 @@ const CYTOSCAPE_STYLE = [
         style: {
             width: 'data(width)',
             height: 'data(height)',
-            'background-color': '#ffffff',
-            'border-color': '#8e9db4',
+            'background-color': '#374151',
+            'border-color': '#f59e0b',
             'border-width': 1.5,
             'border-style': 'dashed',
-            color: '#032d60',
+            color: '#f8fafc',
             'font-size': 12,
             'font-weight': 600,
             'text-max-width': 260,
@@ -150,8 +150,8 @@ const CYTOSCAPE_STYLE = [
             'curve-style': 'bezier',
             'target-arrow-shape': 'triangle',
             'arrow-scale': 0.9,
-            'line-color': '#b0bccd',
-            'target-arrow-color': '#b0bccd',
+            'line-color': '#cbd5e1',
+            'target-arrow-color': '#cbd5e1',
             'overlay-opacity': 0
         }
     },
@@ -164,22 +164,22 @@ const CYTOSCAPE_STYLE = [
     {
         selector: 'edge.relation-supplier',
         style: {
-            'line-color': '#0176d3',
-            'target-arrow-color': '#0176d3'
+            'line-color': '#7dd3fc',
+            'target-arrow-color': '#7dd3fc'
         }
     },
     {
         selector: 'edge.relation-distributor',
         style: {
-            'line-color': '#2e844a',
-            'target-arrow-color': '#2e844a'
+            'line-color': '#34d399',
+            'target-arrow-color': '#34d399'
         }
     },
     {
         selector: 'edge.relation-competitor',
         style: {
-            'line-color': '#ba0517',
-            'target-arrow-color': '#ba0517',
+            'line-color': '#fbbf24',
+            'target-arrow-color': '#fbbf24',
             'line-style': 'dashed'
         }
     },
@@ -195,8 +195,8 @@ const CYTOSCAPE_STYLE = [
         style: {
             width: 1.4,
             'line-style': 'dashed',
-            'line-color': '#8e9db4',
-            'target-arrow-color': '#8e9db4',
+            'line-color': '#e5e7eb',
+            'target-arrow-color': '#e5e7eb',
             'target-arrow-shape': 'none',
             'curve-style': 'bezier'
         }
@@ -211,9 +211,9 @@ const CYTOSCAPE_STYLE = [
         selector: 'node.entity.is-focus',
         style: {
             'border-width': 3,
-            'border-color': '#0176d3',
+            'border-color': '#f8fafc',
             'shadow-blur': 14,
-            'shadow-color': '#0176d3',
+            'shadow-color': '#f8fafc',
             'shadow-opacity': 0.35,
             'shadow-offset-x': 0,
             'shadow-offset-y': 0

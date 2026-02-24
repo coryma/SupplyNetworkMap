@@ -1,10 +1,10 @@
 :host {
-    --sn-border: #d8dde6;
-    --sn-text-primary: #032d60;
-    --sn-text-subtle: #5c6b80;
-    --sn-surface: #ffffff;
-    --sn-surface-alt: #f8f9fb;
-    --sn-accent: #0176d3;
+    --sn-border: #1e3a5f;
+    --sn-text-primary: #334155;
+    --sn-text-subtle: #475569;
+    --sn-bg-start: #02142e;
+    --sn-bg-mid: #031b3c;
+    --sn-bg-end: #000f2a;
     display: block;
 }
 
@@ -30,17 +30,17 @@
 }
 
 .state-message.info {
-    color: var(--sn-accent);
+    color: #1d4ed8;
     font-size: 0.8rem;
 }
 
 .state-message.subtle {
-    color: var(--sn-text-subtle);
+    color: #64748b;
     font-size: 0.75rem;
 }
 
 .state-message.error {
-    color: #ba0517;
+    color: #fca5a5;
 }
 
 .legend {
@@ -54,7 +54,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    color: #3e3e3c;
+    color: #334155;
     font-size: 0.75rem;
     font-weight: 600;
 }
@@ -64,23 +64,23 @@
     width: 0.78rem;
     height: 0.78rem;
     border-radius: 0.2rem;
-    border: 1px solid #c9c9c9;
+    border: 1px solid rgba(15, 23, 42, 0.2);
 }
 
 .legend-swatch.role-design {
-    background: #eaf5fe;
+    background: #fef3c7;
 }
 
 .legend-swatch.role-manufacturing {
-    background: #f4f7fb;
+    background: #e0f2fe;
 }
 
 .legend-swatch.role-channel {
-    background: #edf7f2;
+    background: #dcfce7;
 }
 
 .legend-swatch.role-customer {
-    background: #fef6f0;
+    background: #f3e8ff;
 }
 
 .graph-shell {
@@ -94,12 +94,10 @@
     border: 1px solid var(--sn-border);
     border-radius: 0.75rem;
     background:
-        repeating-linear-gradient(0deg, rgba(1, 118, 211, 0.04) 0, rgba(1, 118, 211, 0.04) 1px, transparent 1px, transparent 34px),
-        repeating-linear-gradient(90deg, rgba(1, 118, 211, 0.04) 0, rgba(1, 118, 211, 0.04) 1px, transparent 1px, transparent 34px),
-        linear-gradient(180deg, var(--sn-surface) 0%, var(--sn-surface-alt) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(2, 45, 96, 0.03),
-        0 1px 3px rgba(0, 0, 0, 0.08);
+        radial-gradient(circle at 18% 22%, rgba(56, 189, 248, 0.17), transparent 42%),
+        radial-gradient(circle at 84% 66%, rgba(56, 189, 248, 0.12), transparent 38%),
+        linear-gradient(180deg, var(--sn-bg-start) 0%, var(--sn-bg-mid) 47%, var(--sn-bg-end) 100%);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
 }
 
 .node-tooltip {
@@ -109,9 +107,9 @@
     width: min(300px, calc(100vw - 24px));
     padding: 0.65rem 0.75rem 0.72rem;
     border-radius: 0.55rem;
-    border: 1px solid var(--sn-border);
-    background: #ffffff;
-    color: #032d60;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(2, 6, 23, 0.93);
+    color: #e2e8f0;
     pointer-events: none;
     z-index: 9999;
     opacity: 0;
@@ -119,7 +117,9 @@
     transition:
         opacity 120ms ease,
         transform 120ms ease;
-    box-shadow: 0 8px 24px rgba(24, 24, 24, 0.14);
+    box-shadow:
+        0 14px 30px rgba(2, 6, 23, 0.55),
+        inset 0 0 0 1px rgba(248, 250, 252, 0.06);
 }
 
 .node-tooltip.is-visible {
@@ -139,7 +139,7 @@
     align-items: baseline;
     gap: 0.35rem;
     font-size: 0.78rem;
-    color: #5c6b80;
+    color: #cbd5e1;
 }
 
 .node-tooltip-label {
@@ -147,14 +147,14 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: var(--sn-accent);
+    color: #7dd3fc;
 }
 
 .node-tooltip-note {
     margin-top: 0.45rem;
     font-size: 0.78rem;
     line-height: 1.45;
-    color: #3e3e3c;
+    color: #e2e8f0;
 }
 
 @media (max-width: 768px) {
