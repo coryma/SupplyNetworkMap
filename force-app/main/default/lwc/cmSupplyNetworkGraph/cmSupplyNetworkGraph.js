@@ -24,6 +24,7 @@ const NETWORK_VERTICAL_SPACING = 180;
 const GRAPH_FIT_PADDING = 80;
 const TOOLTIP_OFFSET_X = 18;
 const TOOLTIP_OFFSET_Y = 16;
+const NAVIGATION_GUARD_WINDOW_MS = 500;
 const CACHE_KEY_PREFIX = 'cmSupplyNetworkGraph';
 const LOADING_STATUS_MESSAGE = '正在載入上下游關係圖...';
 
@@ -34,20 +35,21 @@ const CYTOSCAPE_STYLE = [
             'background-color': '#6b7280',
             label: 'data(label)',
             color: '#e2e8f0',
-            'font-size': 13,
+            'font-size': 15,
             'font-weight': 600,
             'text-wrap': 'wrap',
-            'text-max-width': 180,
+            'text-max-width': 196,
             'text-valign': 'center',
             'text-halign': 'center',
             'background-opacity': 1,
-            width: 190,
-            height: 96,
+            width: 214,
+            height: 112,
             shape: 'round-rectangle',
             'border-width': 2,
             'border-color': '#475569',
             'text-outline-width': 0,
-            'overlay-opacity': 0
+            'overlay-opacity': 0,
+            'min-zoomed-font-size': 11
         }
     },
     {
@@ -55,7 +57,7 @@ const CYTOSCAPE_STYLE = [
         style: {
             'background-color': '#e2e8f0',
             color: '#111827',
-            'font-size': 15
+            'font-size': 17
         }
     },
     {
@@ -64,10 +66,10 @@ const CYTOSCAPE_STYLE = [
             'background-color': '#fef3c7',
             'border-color': '#f59e0b',
             color: '#111827',
-            width: 220,
-            height: 110,
+            width: 246,
+            height: 126,
             'border-width': 2,
-            'font-size': 17,
+            'font-size': 20,
             'font-weight': 700
         }
     },
@@ -102,7 +104,7 @@ const CYTOSCAPE_STYLE = [
             width: 'data(width)',
             height: 'data(height)',
             color: '#e2e8f0',
-            'font-size': 16,
+            'font-size': 18,
             'font-weight': 700,
             'text-max-width': 320,
             'text-valign': 'top',
@@ -135,7 +137,7 @@ const CYTOSCAPE_STYLE = [
             'border-width': 1.5,
             'border-style': 'dashed',
             color: '#f8fafc',
-            'font-size': 12,
+            'font-size': 14,
             'font-weight': 600,
             'text-max-width': 260,
             'text-wrap': 'wrap',
@@ -246,13 +248,20 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
     scriptLoadingPromise;
     requestSequence = 0;
     tooltipCurrentNodeId;
+    resizeObserver;
+    lastNavigationAt = 0;
+    windowResizeHandler;
+    windowFocusHandler;
+    visibilityChangeHandler;
 
     connectedCallback() {
         this.restoreCachedGraph();
+        this.initializeViewportListeners();
         this.loadGraphData();
     }
 
     renderedCallback() {
+        this.ensureContainerObserver();
         if (this.scriptLoadingPromise) {
             return;
         }
@@ -267,6 +276,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
     }
 
     disconnectedCallback() {
+        this.teardownViewportListeners();
+        this.teardownContainerObserver();
         if (this.cy) {
             this.cy.destroy();
             this.cy = null;
@@ -381,16 +392,19 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
             layout: {
                 name: 'preset'
             },
-            wheelSensitivity: 0.15
+            wheelSensitivity: 0.15,
+            pixelRatio: 1
         });
 
-        this.cy.on('tap', 'node', (event) => {
+        const navigateFromNode = (event) => {
             const tappedNode = event.target;
             if (tappedNode.data('isVirtual')) {
                 return;
             }
             this.navigateToAccount(tappedNode.data('accountId'));
-        });
+        };
+        this.cy.on('tap', 'node', navigateFromNode);
+        this.cy.on('click', 'node', navigateFromNode);
 
         this.cy.on('mouseover', 'node.entity', (event) => {
             this.applyFocusState(event.target);
@@ -414,7 +428,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
             this.hideNodeTooltip();
         });
 
-        this.cy.fit(undefined, GRAPH_FIT_PADDING);
+        this.scheduleViewportSync({ refit: true });
     }
 
     clearGraph() {
@@ -542,6 +556,11 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
         if (!accountId) {
             return;
         }
+        const now = Date.now();
+        if (now - this.lastNavigationAt < NAVIGATION_GUARD_WINDOW_MS) {
+            return;
+        }
+        this.lastNavigationAt = now;
         this[NavigationMixin.Navigate]({
             type: 'standard__recordPage',
             attributes: {
@@ -659,5 +678,90 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
 
     get nodeCount() {
         return this.graphResponse?.nodeCount || 0;
+    }
+
+    initializeViewportListeners() {
+        if (this.windowResizeHandler) {
+            return;
+        }
+
+        this.windowResizeHandler = () => {
+            this.scheduleViewportSync();
+        };
+        this.windowFocusHandler = () => {
+            this.scheduleViewportSync();
+        };
+        this.visibilityChangeHandler = () => {
+            if (document.hidden) {
+                return;
+            }
+            this.scheduleViewportSync();
+        };
+
+        window.addEventListener('resize', this.windowResizeHandler);
+        window.addEventListener('focus', this.windowFocusHandler);
+        document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
+
+    teardownViewportListeners() {
+        if (this.windowResizeHandler) {
+            window.removeEventListener('resize', this.windowResizeHandler);
+            this.windowResizeHandler = undefined;
+        }
+        if (this.windowFocusHandler) {
+            window.removeEventListener('focus', this.windowFocusHandler);
+            this.windowFocusHandler = undefined;
+        }
+        if (this.visibilityChangeHandler) {
+            document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+            this.visibilityChangeHandler = undefined;
+        }
+    }
+
+    ensureContainerObserver() {
+        if (this.resizeObserver || typeof window.ResizeObserver !== 'function') {
+            return;
+        }
+
+        const container = this.template.querySelector('[data-id="graph"]');
+        if (!container) {
+            return;
+        }
+
+        this.resizeObserver = new window.ResizeObserver(() => {
+            this.scheduleViewportSync();
+        });
+        this.resizeObserver.observe(container);
+    }
+
+    teardownContainerObserver() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = undefined;
+        }
+    }
+
+    scheduleViewportSync(options = {}) {
+        if (!this.cy) {
+            return;
+        }
+
+        const shouldRefit = options.refit === true;
+        this.syncViewport(shouldRefit);
+    }
+
+    syncViewport(shouldRefit = false) {
+        if (!this.cy) {
+            return;
+        }
+
+        try {
+            this.cy.resize();
+            if (shouldRefit) {
+                this.cy.fit(undefined, GRAPH_FIT_PADDING);
+            }
+        } catch {
+            // Best-effort refresh; ignore transient rendering failures.
+        }
     }
 }
