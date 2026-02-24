@@ -19,12 +19,13 @@ const FILTER_OPTIONS = [
 
 const STORY_HORIZONTAL_SPACING = 280;
 const STORY_VERTICAL_SPACING = 210;
-const NETWORK_HORIZONTAL_SPACING = 220;
-const NETWORK_VERTICAL_SPACING = 180;
+const NETWORK_HORIZONTAL_SPACING = 250;
+const NETWORK_VERTICAL_SPACING = 195;
 const GRAPH_FIT_PADDING = 80;
 const TOOLTIP_OFFSET_X = 18;
 const TOOLTIP_OFFSET_Y = 16;
 const NAVIGATION_GUARD_WINDOW_MS = 500;
+const PAN_NAVIGATION_GUARD_WINDOW_MS = 180;
 const CACHE_KEY_PREFIX = 'cmSupplyNetworkGraph';
 const LOADING_STATUS_MESSAGE = '正在載入上下游關係圖...';
 
@@ -35,15 +36,15 @@ const CYTOSCAPE_STYLE = [
             'background-color': '#6b7280',
             label: 'data(label)',
             color: '#e2e8f0',
-            'font-size': 15,
+            'font-size': 16,
             'font-weight': 600,
             'text-wrap': 'wrap',
-            'text-max-width': 196,
+            'text-max-width': 216,
             'text-valign': 'center',
             'text-halign': 'center',
             'background-opacity': 1,
-            width: 214,
-            height: 112,
+            width: 232,
+            height: 122,
             shape: 'round-rectangle',
             'border-width': 2,
             'border-color': '#475569',
@@ -57,7 +58,7 @@ const CYTOSCAPE_STYLE = [
         style: {
             'background-color': '#e2e8f0',
             color: '#111827',
-            'font-size': 17
+            'font-size': 18
         }
     },
     {
@@ -66,10 +67,10 @@ const CYTOSCAPE_STYLE = [
             'background-color': '#fef3c7',
             'border-color': '#f59e0b',
             color: '#111827',
-            width: 246,
-            height: 126,
+            width: 264,
+            height: 136,
             'border-width': 2,
-            'font-size': 20,
+            'font-size': 22,
             'font-weight': 700
         }
     },
@@ -104,7 +105,7 @@ const CYTOSCAPE_STYLE = [
             width: 'data(width)',
             height: 'data(height)',
             color: '#e2e8f0',
-            'font-size': 18,
+            'font-size': 19,
             'font-weight': 700,
             'text-max-width': 320,
             'text-valign': 'top',
@@ -137,7 +138,7 @@ const CYTOSCAPE_STYLE = [
             'border-width': 1.5,
             'border-style': 'dashed',
             color: '#f8fafc',
-            'font-size': 14,
+            'font-size': 15,
             'font-weight': 600,
             'text-max-width': 260,
             'text-wrap': 'wrap',
@@ -253,6 +254,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
     windowResizeHandler;
     windowFocusHandler;
     visibilityChangeHandler;
+    lastPanAt = 0;
 
     connectedCallback() {
         this.restoreCachedGraph();
@@ -393,12 +395,21 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
                 name: 'preset'
             },
             wheelSensitivity: 0.15,
-            pixelRatio: 1
+            pixelRatio: 1,
+            panningEnabled: true,
+            userPanningEnabled: true,
+            zoomingEnabled: true,
+            userZoomingEnabled: true,
+            boxSelectionEnabled: false,
+            autoungrabify: true
         });
 
         const navigateFromNode = (event) => {
             const tappedNode = event.target;
             if (tappedNode.data('isVirtual')) {
+                return;
+            }
+            if (Date.now() - this.lastPanAt < PAN_NAVIGATION_GUARD_WINDOW_MS) {
                 return;
             }
             this.navigateToAccount(tappedNode.data('accountId'));
@@ -422,6 +433,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
 
         this.cy.on('tap', () => {
             this.hideNodeTooltip();
+        });
+
+        this.cy.on('pan', () => {
+            this.lastPanAt = Date.now();
         });
 
         this.cy.on('pan zoom', () => {
