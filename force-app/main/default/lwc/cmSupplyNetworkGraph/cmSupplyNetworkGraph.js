@@ -126,7 +126,8 @@ const CYTOSCAPE_STYLE = [
         selector: 'node.lane-downstream',
         style: {
             'background-color': '#5f666d',
-            'background-opacity': 0.8
+            'background-opacity': 0.8,
+            'text-margin-y': 12
         }
     },
     {
