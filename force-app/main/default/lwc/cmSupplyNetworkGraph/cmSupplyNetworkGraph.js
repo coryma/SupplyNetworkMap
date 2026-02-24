@@ -105,13 +105,14 @@ const CYTOSCAPE_STYLE = [
             width: 'data(width)',
             height: 'data(height)',
             color: '#e2e8f0',
-            'font-size': 19,
+            'font-size': 24,
             'font-weight': 700,
             'text-max-width': 320,
             'text-valign': 'top',
-            'text-margin-y': -8,
+            'text-margin-y': -12,
             'z-index': -1,
-            events: 'no'
+            events: 'no',
+            'min-zoomed-font-size': 14
         }
     },
     {
