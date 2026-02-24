@@ -25,7 +25,7 @@ const GRAPH_FIT_PADDING = 80;
 const TOOLTIP_OFFSET_X = 18;
 const TOOLTIP_OFFSET_Y = 16;
 const NAVIGATION_GUARD_WINDOW_MS = 500;
-const PAN_NAVIGATION_GUARD_WINDOW_MS = 180;
+const PAN_NAVIGATION_GUARD_WINDOW_MS = 120;
 const CACHE_KEY_PREFIX = 'cmSupplyNetworkGraph';
 const LOADING_STATUS_MESSAGE = '正在載入上下游關係圖...';
 
@@ -252,6 +252,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
     resizeObserver;
     lastNavigationAt = 0;
     windowResizeHandler;
+    windowScrollHandler;
     windowFocusHandler;
     visibilityChangeHandler;
     lastPanAt = 0;
@@ -703,6 +704,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
         this.windowResizeHandler = () => {
             this.scheduleViewportSync();
         };
+        this.windowScrollHandler = () => {
+            this.scheduleViewportSync();
+        };
         this.windowFocusHandler = () => {
             this.scheduleViewportSync();
         };
@@ -714,6 +718,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
         };
 
         window.addEventListener('resize', this.windowResizeHandler);
+        window.addEventListener('scroll', this.windowScrollHandler, true);
         window.addEventListener('focus', this.windowFocusHandler);
         document.addEventListener('visibilitychange', this.visibilityChangeHandler);
     }
@@ -726,6 +731,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(LightningEleme
         if (this.windowFocusHandler) {
             window.removeEventListener('focus', this.windowFocusHandler);
             this.windowFocusHandler = undefined;
+        }
+        if (this.windowScrollHandler) {
+            window.removeEventListener('scroll', this.windowScrollHandler, true);
+            this.windowScrollHandler = undefined;
         }
         if (this.visibilityChangeHandler) {
             document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
