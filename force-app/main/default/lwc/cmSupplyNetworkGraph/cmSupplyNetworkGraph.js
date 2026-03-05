@@ -26,6 +26,8 @@ const FILTER_OPTIONS = [
 
 const STORY_HORIZONTAL_SPACING = 280;
 const STORY_VERTICAL_SPACING = 210;
+const STORY_HORIZONTAL_SPACING_EXPANDED = 360;
+const STORY_VERTICAL_SPACING_EXPANDED = 230;
 const NETWORK_HORIZONTAL_SPACING = 250;
 const NETWORK_VERTICAL_SPACING = 195;
 const GRAPH_FIT_PADDING = 64;
@@ -38,6 +40,7 @@ const LANE_NODE_GAP_X = 24;
 const LANE_NODE_GAP_Y = 20;
 const LANE_RESIZE_HANDLE_SIZE = 16;
 const LANE_RESIZE_HANDLE_INSET = 8;
+const EDGE_HOVER_OVERLAY_PADDING_EXPANDED = 10;
 const NAVIGATION_GUARD_WINDOW_MS = 500;
 const PAN_NAVIGATION_GUARD_WINDOW_MS = 120;
 const DRAG_NAVIGATION_GUARD_WINDOW_MS = 280;
@@ -385,6 +388,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   isGraphFullscreen = false;
   isUsingNativeFullscreen = false;
   pendingViewportRefit = false;
+  laneExpandModeEnabled = false;
 
   connectedCallback() {
     this.restoreUserPreferences();
@@ -458,6 +462,13 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
   handleFitGraph() {
     this.scheduleViewportSync({ refit: true });
+  }
+
+  handleToggleLaneExpandMode() {
+    this.laneExpandModeEnabled = !this.laneExpandModeEnabled;
+    this.hideNodeTooltip();
+    this.renderGraph();
+    this.requestViewportRefit();
   }
 
   handleToggleManualManager() {
@@ -702,7 +713,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         : "status-badge is-inactive",
       updatedLabel: this.formatDateTime(row?.lastModifiedDate),
       relatedAccountName: row?.relatedAccountName || "(Unknown Account)",
-      pathTypeLabel: row?.pathTypeLabel || (row?.pathType === "INDIRECT" ? "間接" : "直接")
+      pathTypeLabel:
+        row?.pathTypeLabel || (row?.pathType === "INDIRECT" ? "間接" : "直接")
     };
   }
 
@@ -803,10 +815,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
       this.showToast("建立成功", "已建立手動供應鏈關係。", "success");
       this.handleResetRelationshipForm();
-      await Promise.all([
-        this.loadGraphData(),
-        this.loadManualRelationships()
-      ]);
+      await Promise.all([this.loadGraphData(), this.loadManualRelationships()]);
     } catch (error) {
       this.showToast("建立失敗", this.formatError(error), "error");
     } finally {
@@ -967,8 +976,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
     const computedPositionsByNode = computeNodePositions(
       nodes,
-      this.isStoryMode ? STORY_HORIZONTAL_SPACING : NETWORK_HORIZONTAL_SPACING,
-      this.isStoryMode ? STORY_VERTICAL_SPACING : NETWORK_VERTICAL_SPACING
+      this.graphHorizontalSpacing,
+      this.graphVerticalSpacing
     );
     const positionsByNode = this.mergeManualPositions(
       nodes,
@@ -982,9 +991,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
           this.selectedFilter,
           positionsByNode
         );
-    const laneResizeHandleElements = this.buildLaneResizeHandleElements(
-      filteredElements.nodes
-    );
+    const laneResizeHandleElements = this.shouldRenderLaneResizeHandles
+      ? this.buildLaneResizeHandleElements(filteredElements.nodes)
+      : [];
     const elements = [
       ...filteredElements.nodes,
       ...laneResizeHandleElements,
@@ -1016,6 +1025,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       boxSelectionEnabled: false,
       autoungrabify: false
     });
+
+    this.applyLaneInteractionMode();
 
     const navigateFromNode = (event) => {
       const tappedNode = event.target;
@@ -1245,6 +1256,29 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.cy = null;
     }
     this.hideNodeTooltip();
+  }
+
+  applyLaneInteractionMode() {
+    if (!this.cy) {
+      return;
+    }
+
+    const laneEventMode = this.laneExpandModeEnabled ? "no" : "yes";
+    const edgeOverlayPadding = this.laneExpandModeEnabled
+      ? EDGE_HOVER_OVERLAY_PADDING_EXPANDED
+      : 0;
+
+    try {
+      this.cy
+        .style()
+        .selector("node.lane")
+        .style("events", laneEventMode)
+        .selector("edge")
+        .style("overlay-padding", edgeOverlayPadding)
+        .update();
+    } catch {
+      // Ignore styling failures and keep graph interactive.
+    }
   }
 
   applyFocusState(node) {
@@ -1685,7 +1719,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get isBusy() {
-    return this.isLoading || this.isRefreshingInBackground || this.isSmartBuilding;
+    return (
+      this.isLoading || this.isRefreshingInBackground || this.isSmartBuilding
+    );
   }
 
   get filterOptions() {
@@ -1708,6 +1744,24 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return this.normalizedDisplayMode === DISPLAY_MODES.STORY;
   }
 
+  get graphHorizontalSpacing() {
+    if (this.isStoryMode) {
+      return this.laneExpandModeEnabled
+        ? STORY_HORIZONTAL_SPACING_EXPANDED
+        : STORY_HORIZONTAL_SPACING;
+    }
+    return NETWORK_HORIZONTAL_SPACING;
+  }
+
+  get graphVerticalSpacing() {
+    if (this.isStoryMode) {
+      return this.laneExpandModeEnabled
+        ? STORY_VERTICAL_SPACING_EXPANDED
+        : STORY_VERTICAL_SPACING;
+    }
+    return NETWORK_VERTICAL_SPACING;
+  }
+
   get normalizedDisplayMode() {
     return this.displayMode === DISPLAY_MODES.NETWORK
       ? DISPLAY_MODES.NETWORK
@@ -1724,6 +1778,24 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
   get refreshGraphButtonTooltip() {
     return "重新整理目前關係圖版面並置中。";
+  }
+
+  get showLaneExpandControl() {
+    return this.isStoryMode && this.hasData;
+  }
+
+  get laneExpandButtonTooltip() {
+    return this.laneExpandModeEnabled ? "收合灰匡公司佈局" : "展開灰匡公司佈局";
+  }
+
+  get laneExpandButtonIconName() {
+    return this.laneExpandModeEnabled ? "utility:dash" : "utility:add";
+  }
+
+  get laneExpandButtonClass() {
+    return this.laneExpandModeEnabled
+      ? "graph-expand-button is-active"
+      : "graph-expand-button";
   }
 
   get analyzeWncImpactButtonTooltip() {
@@ -2149,7 +2221,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     try {
       this.cy.resize();
       if (shouldRefit) {
-        const nonVirtualElements = this.cy.elements('[isVirtual = false]');
+        const nonVirtualElements = this.cy.elements("[isVirtual = false]");
         if (nonVirtualElements && nonVirtualElements.length > 0) {
           this.cy.fit(nonVirtualElements, GRAPH_FIT_PADDING);
         } else {
@@ -2206,6 +2278,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         };
       })
       .filter((element) => element !== null);
+  }
+
+  get shouldRenderLaneResizeHandles() {
+    return this.isStoryMode && !this.laneExpandModeEnabled;
   }
 
   getLaneResizeHandleId(laneId) {
@@ -2289,7 +2365,13 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return resizeState.moved === true;
   }
 
-  reflowLaneMembers(laneNode, laneLeft, laneTop, requestedWidth, requestedHeight) {
+  reflowLaneMembers(
+    laneNode,
+    laneLeft,
+    laneTop,
+    requestedWidth,
+    requestedHeight
+  ) {
     if (!laneNode || laneNode.empty()) {
       return null;
     }
@@ -2321,7 +2403,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     });
 
     const maxNodeWidth = orderedMembers.reduce(
-      (maxWidth, memberNode) => Math.max(maxWidth, Number(memberNode.width()) || 0),
+      (maxWidth, memberNode) =>
+        Math.max(maxWidth, Number(memberNode.width()) || 0),
       0
     );
     const maxNodeHeight = orderedMembers.reduce(
@@ -2341,7 +2424,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     const usableWidth = Math.max(1, appliedWidth - LANE_NODE_PADDING_X * 2);
     const columns = Math.max(
       1,
-      Math.floor((usableWidth + LANE_NODE_GAP_X) / (maxNodeWidth + LANE_NODE_GAP_X))
+      Math.floor(
+        (usableWidth + LANE_NODE_GAP_X) / (maxNodeWidth + LANE_NODE_GAP_X)
+      )
     );
     const rows = Math.max(1, Math.ceil(orderedMembers.length / columns));
 
@@ -2364,8 +2449,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       y: anchorTop + appliedHeight / 2
     });
 
-    const firstColumnCenterX = anchorLeft + LANE_NODE_PADDING_X + maxNodeWidth / 2;
-    const firstRowCenterY = anchorTop + LANE_NODE_PADDING_TOP + maxNodeHeight / 2;
+    const firstColumnCenterX =
+      anchorLeft + LANE_NODE_PADDING_X + maxNodeWidth / 2;
+    const firstRowCenterY =
+      anchorTop + LANE_NODE_PADDING_TOP + maxNodeHeight / 2;
     orderedMembers.forEach((memberNode, index) => {
       const rowIndex = Math.floor(index / columns);
       const columnIndex = index % columns;

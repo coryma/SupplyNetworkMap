@@ -41,12 +41,12 @@
               disabled={disableImpactAnalysisAction}
               title="供應鏈分析"
               aria-label="供應鏈分析"
-              >
-                <span class="ai-action-label">
-                  <span class="ai-action-icon" aria-hidden="true">✦</span>
-                  <span>供應鏈分析</span>
-                </span>
-              </button>
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>供應鏈分析</span>
+              </span>
+            </button>
             <button
               class="toolbar-action-list-button"
               type="button"
@@ -274,6 +274,23 @@
     <div class={graphShellClass}>
       <div class="graph" data-id="graph" lwc:dom="manual"></div>
 
+      <template if:true={showLaneExpandControl}>
+        <button
+          class={laneExpandButtonClass}
+          type="button"
+          onclick={handleToggleLaneExpandMode}
+          title={laneExpandButtonTooltip}
+          aria-label={laneExpandButtonTooltip}
+        >
+          <lightning-icon
+            class="graph-expand-icon"
+            icon-name={laneExpandButtonIconName}
+            size="x-small"
+            alternative-text="Toggle lane expand mode"
+          ></lightning-icon>
+        </button>
+      </template>
+
       <template if:true={showGraphStatusOverlay}>
         <div class="graph-status-stack">
           <template for:each={graphStatusMessages} for:item="statusItem">
@@ -303,7 +320,9 @@
       <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
         <div class="node-tooltip-title" data-id="tooltip-title"></div>
         <div class="node-tooltip-meta">
-          <span class="node-tooltip-label" data-id="tooltip-meta-label">Role</span>
+          <span class="node-tooltip-label" data-id="tooltip-meta-label"
+            >Role</span
+          >
           <span data-id="tooltip-role"></span>
         </div>
         <div class="node-tooltip-note" data-id="tooltip-note"></div>
