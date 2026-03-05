@@ -10,6 +10,9 @@
                             <value>Edit</value>
                         </valueListItems>
                         <valueListItems>
+                            <value>Account.Prepare_QBR</value>
+                        </valueListItems>
+                        <valueListItems>
                             <value>Global.LogACall</value>
                         </valueListItems>
                         <valueListItems>
@@ -59,7 +62,7 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>numVisibleActions</name>
-                    <value>5</value>
+                    <value>6</value>
                 </componentInstanceProperties>
                 <componentName>force:highlightsPanel</componentName>
                 <identifier>force_highlightsPanel</identifier>
@@ -171,6 +174,16 @@
                 </fieldInstanceProperties>
                 <fieldItem>Record.ParentId</fieldItem>
                 <identifier>RecordParentIdField</identifier>
+            </fieldInstance>
+        </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
+                <fieldItem>Record.CM_Is_Supplier__c</fieldItem>
+                <identifier>RecordCM_Is_Supplier__cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-6a0c30cd-01ac-49a2-bf61-39c5e98f5d30</name>
@@ -568,70 +581,14 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
-                    <name>graphName</name>
-                    <value>AccountToPartnerRelationship</value>
+                    <name>maxNodes</name>
+                    <value>15</value>
                 </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>label</name>
-                </componentInstanceProperties>
-                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
-                <identifier>runtime_industries_arcgraph_arcGraph</identifier>
-                <visibilityRule>
-                    <criteria>
-                        <leftValue>{!Record.Type}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Enterprise</rightValue>
-                    </criteria>
-                </visibilityRule>
+                <componentName>cmSupplyNetworkGraph</componentName>
+                <identifier>c_cmSupplyNetworkGraph</identifier>
             </componentInstance>
         </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>graphName</name>
-                    <value>PartnerToAccountRelationship</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>label</name>
-                </componentInstanceProperties>
-                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
-                <identifier>runtime_industries_arcgraph_arcGraph2</identifier>
-                <visibilityRule>
-                    <booleanFilter>1 OR 2</booleanFilter>
-                    <criteria>
-                        <leftValue>{!Record.Type}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Tier 1</rightValue>
-                    </criteria>
-                    <criteria>
-                        <leftValue>{!Record.Type}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Distributor</rightValue>
-                    </criteria>
-                </visibilityRule>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentName>runtime_industries_arcgraph:arcGraphHighlightsPanel</componentName>
-                <identifier>runtime_industries_arcgraph_arcGraphHighlightsPanel</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>label</name>
-                    <value>Details</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showLabel</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>runtime_industries_arcgraph:arcGraphRecordDetails</componentName>
-                <identifier>runtime_industries_arcgraph_arcGraphRecordDetails</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-0bbb9124-7897-402a-8a99-4f25b0025637</name>
+        <name>Facet-cmsupplynetworkgraph</name>
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
@@ -1389,6 +1346,76 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
+                    <name>graphName</name>
+                    <value>AccountToPartnerRelationship</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>label</name>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraph</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Enterprise</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>graphName</name>
+                    <value>PartnerToAccountRelationship</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>label</name>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraph2</identifier>
+                <visibilityRule>
+                    <booleanFilter>1 OR 2</booleanFilter>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Tier 1</rightValue>
+                    </criteria>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Distributor</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>runtime_industries_arcgraph:arcGraphHighlightsPanel</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphHighlightsPanel</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>label</name>
+                    <value>Details</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>showLabel</name>
+                    <value>true</value>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraphRecordDetails</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphRecordDetails</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>Facet-0bbb9124-7897-402a-8a99-4f25b0025637</name>
+        <type>Facet</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
                     <name>dashboardId</name>
                     <value>Demo_Forecast_Analytics</value>
                 </componentInstanceProperties>
@@ -1500,16 +1527,6 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>industries_mfg_forecast:forecastContainer</componentName>
-                <identifier>industries_mfg_forecast_forecastContainer</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-1ca81af2-5014-46e5-808d-37455e5c10f4</name>
-        <type>Facet</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
                 <componentInstanceProperties>
                     <name>dashboardId</name>
                     <value>Demo_Rebate_Analytics_Account_Page_Embedded1</value>
@@ -1563,192 +1580,6 @@
             </componentInstance>
         </itemInstances>
         <name>Facet-caa8d386-e681-4453-96ae-827cee0f47a5</name>
-        <type>Facet</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>Opportunities</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>7</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer5</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>SBQQ__Quotes__r</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>7</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer6</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>Contracts</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>7</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer7</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>SBQQ__Subscriptions__r</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>7</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer8</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>Assets</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>7</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer9</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>Orders</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>ADVGRID</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>10</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer10</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>parentFieldApiName</name>
-                    <value>Account.Id</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListApiName</name>
-                    <value>SBQQ__R00N70000001olI5EAI__r</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>relatedListComponentOverride</name>
-                    <value>NONE</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>rowsToDisplay</name>
-                    <value>10</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>showActionBar</name>
-                    <value>true</value>
-                </componentInstanceProperties>
-                <componentName>force:relatedListSingleContainer</componentName>
-                <identifier>force_relatedListSingleContainer1</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-9ae622f1-a35e-4eac-a801-926f2908f3e6</name>
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
@@ -1857,7 +1688,7 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>relatedListLabel</name>
-                    <value>帳戶計畫</value>
+                    <value>客戶經營計劃</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>showActionBar</name>
@@ -1985,14 +1816,42 @@
             <componentInstance>
                 <componentInstanceProperties>
                     <name>body</name>
+                    <value>Facet-cmsupplynetworkgraph</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>{!$Label.CM_Supply_Chain_Analysis_Tab}</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>tab_cmSupplyNetworkGraph</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.CM_Is_Supplier__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>true</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>body</name>
                     <value>Facet-0bbb9124-7897-402a-8a99-4f25b0025637</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>title</name>
-                    <value>{!$Label.CM_Account_Relationship}</value>
+                    <value>{!$Label.CM_Supplier_Info_Tab}</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
-                <identifier>flexipage_tab4</identifier>
+                <identifier>tab_cmSupplierInfo</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.CM_Is_Supplier__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>true</rightValue>
+                    </criteria>
+                </visibilityRule>
             </componentInstance>
         </itemInstances>
         <itemInstances>
@@ -2101,20 +1960,6 @@
             <componentInstance>
                 <componentInstanceProperties>
                     <name>body</name>
-                    <value>Facet-1ca81af2-5014-46e5-808d-37455e5c10f4</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>title</name>
-                    <value>Standard.Tab.forecast</value>
-                </componentInstanceProperties>
-                <componentName>flexipage:tab</componentName>
-                <identifier>forecastTab</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
                     <value>Facet-caa8d386-e681-4453-96ae-827cee0f47a5</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
@@ -2129,20 +1974,6 @@
             <componentInstance>
                 <componentInstanceProperties>
                     <name>body</name>
-                    <value>Facet-9ae622f1-a35e-4eac-a801-926f2908f3e6</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>title</name>
-                    <value>Revenue</value>
-                </componentInstanceProperties>
-                <componentName>flexipage:tab</componentName>
-                <identifier>customTab6</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
                     <value>Facet-u2k5oxo0iv</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
@@ -2151,20 +1982,6 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>customTab7</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
-                    <value>Facet-cmsupplynetworkgraph</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>title</name>
-                    <value>Supply Network</value>
-                </componentInstanceProperties>
-                <componentName>flexipage:tab</componentName>
-                <identifier>tab_cmSupplyNetworkGraph</identifier>
             </componentInstance>
         </itemInstances>
         <name>facet-d3a2b713-c779-4989-94d2-0ce5b963748b</name>
@@ -2385,20 +2202,6 @@
         </itemInstances>
         <name>sidebar</name>
         <type>Region</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>maxNodes</name>
-                    <value>150</value>
-                </componentInstanceProperties>
-                <componentName>c:cmSupplyNetworkGraph</componentName>
-                <identifier>c_cmSupplyNetworkGraph</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-cmsupplynetworkgraph</name>
-        <type>Facet</type>
     </flexiPageRegions>
     <masterLabel>MFG Account Discrete ALL</masterLabel>
     <sobjectType>Account</sobjectType>

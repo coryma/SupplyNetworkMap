@@ -1,85 +1,498 @@
 <template>
-    <lightning-card title="CM Supply Network Graph" icon-name="utility:graph">
-        <div class="toolbar slds-p-horizontal_small slds-p-top_small slds-grid slds-wrap slds-gutters_small">
-            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+  <lightning-card>
+    <div class="toolbar slds-p-horizontal_small slds-p-top_small">
+      <div class="toolbar-main">
+        <div class="toolbar-left">
+          <div class="toolbar-filter-col">
+            <lightning-combobox
+              name="graphFilter"
+              label="View"
+              value={selectedFilter}
+              options={filterOptions}
+              onchange={handleFilterChange}
+            >
+            </lightning-combobox>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <div
+            class="toolbar-action-list"
+            role="group"
+            aria-label="Supply network actions"
+          >
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleSmartBuild}
+              disabled={disableSmartBuildAction}
+              title="智能建立"
+              aria-label="智能建立"
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>智能建立</span>
+              </span>
+            </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleAnalyzeWncImpact}
+              disabled={disableImpactAnalysisAction}
+              title="供應鏈分析"
+              aria-label="供應鏈分析"
+              >
+                <span class="ai-action-label">
+                  <span class="ai-action-icon" aria-hidden="true">✦</span>
+                  <span>供應鏈分析</span>
+                </span>
+              </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleOpenManualManager}
+              title="手動建立關聯"
+              aria-label="手動建立關聯"
+            >
+              手動建立關聯
+            </button>
+          </div>
+          <div
+            class="toolbar-icon-group"
+            role="group"
+            aria-label="Graph canvas actions"
+          >
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleZoomOut}
+              disabled={isBusy}
+              title="縮小關係圖"
+              aria-label="縮小關係圖"
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:dash"
+                size="x-small"
+                alternative-text="Zoom out"
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleFitGraph}
+              disabled={isBusy}
+              title="置中並適應視窗"
+              aria-label="置中並適應視窗"
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:move"
+                size="x-small"
+                alternative-text="Fit graph"
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleZoomIn}
+              disabled={isBusy}
+              title="放大關係圖"
+              aria-label="放大關係圖"
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:add"
+                size="x-small"
+                alternative-text="Zoom in"
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleToggleGraphFullscreen}
+              title="切換全螢幕"
+              aria-label="切換全螢幕"
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:expand"
+                size="x-small"
+                alternative-text="Toggle fullscreen"
+              ></lightning-icon>
+            </button>
+          </div>
+          <button
+            class="toolbar-refresh-button"
+            type="button"
+            onclick={handleRefreshClick}
+            disabled={isBusy}
+            title={refreshGraphButtonTooltip}
+            aria-label={refreshGraphButtonTooltip}
+          >
+            <lightning-icon
+              class="toolbar-action-icon"
+              icon-name="utility:refresh"
+              size="x-small"
+              alternative-text="Refresh graph"
+            ></lightning-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <template if:true={isTruncated}>
+      <div class="truncation-note slds-p-horizontal_small">
+        Showing first {nodeCount} nodes (capped for performance).
+      </div>
+    </template>
+
+    <template if:true={coverageNote}>
+      <div class="state-message info">{coverageNote}</div>
+    </template>
+
+    <template if:true={errorMessage}>
+      <div class="state-message error">{errorMessage}</div>
+    </template>
+
+    <template if:true={showEmptyState}>
+      <div class="state-message subtle">目前沒有可顯示的上下游關係資料。</div>
+    </template>
+
+    <template if:true={showWncImpactAnalysis}>
+      <div class="state-message impact">
+        <div class="impact-title-row">
+          <span class="impact-title"
+            >WNC 影響分析（{wncImpactLevelLabel}）</span
+          >
+          <template if:true={hasWncImpactContext}>
+            <span class="impact-context">{wncImpactContextLabel}</span>
+          </template>
+          <button
+            class="impact-toggle-button"
+            type="button"
+            onclick={handleToggleWncImpactExpanded}
+          >
+            {wncImpactToggleLabel}
+          </button>
+        </div>
+
+        <template if:true={hasWncImpactSummary}>
+          <div class="impact-summary">{wncImpactSummaryPreview}</div>
+        </template>
+
+        <template if:true={showWncImpactSummaryFull}>
+          <div class="impact-body impact-summary-full">{wncImpactSummary}</div>
+        </template>
+
+        <template if:true={showExpandedWncImpactDetails}>
+          <template if:true={hasWncImpactOverallAssessment}>
+            <div class="impact-section">
+              <div class="impact-section-title">Overall Assessment</div>
+              <div class="impact-body">{wncImpactOverallAssessment}</div>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactRisks}>
+            <div class="impact-section">
+              <div class="impact-section-title">Key Risks</div>
+              <template for:each={wncImpactRiskRows} for:item="risk">
+                <div key={risk.key} class="impact-risk-item">
+                  <template if:true={risk.title}>
+                    <div class="impact-risk-heading">{risk.title}</div>
+                  </template>
+                  <template if:true={risk.impact}>
+                    <div class="impact-risk-impact">{risk.impact}</div>
+                  </template>
+                  <template if:true={risk.reason}>
+                    <div class="impact-risk-reason">{risk.reason}</div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactPositiveSignals}>
+            <div class="impact-section">
+              <div class="impact-section-title">Positive Signals</div>
+              <template
+                for:each={wncImpactPositiveSignalRows}
+                for:item="signal"
+              >
+                <div key={signal.key} class="impact-list-line">
+                  {signal.text}
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactRecommendedActions}>
+            <div class="impact-section">
+              <div class="impact-section-title">Recommended Actions</div>
+              <template
+                for:each={wncImpactRecommendedActionRows}
+                for:item="action"
+              >
+                <div key={action.key} class="impact-list-line">
+                  {action.text}
+                </div>
+              </template>
+            </div>
+          </template>
+        </template>
+      </div>
+      <template if:true={wncImpactGeneratedAtLabel}>
+        <div class="state-message subtle">
+          WNC Analysis updated: {wncImpactGeneratedAtLabel}
+        </div>
+      </template>
+    </template>
+
+    <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
+      <span class="legend-item">
+        <span class="legend-swatch role-design"></span>
+        IC Design
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-manufacturing"></span>
+        Manufacturing
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-channel"></span>
+        Channel / ODM
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-customer"></span>
+        End Customers
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-competitor"></span>
+        Competitors
+      </span>
+    </div>
+
+    <div class={graphShellClass}>
+      <div class="graph" data-id="graph" lwc:dom="manual"></div>
+
+      <template if:true={showGraphStatusOverlay}>
+        <div class="graph-status-stack">
+          <template for:each={graphStatusMessages} for:item="statusItem">
+            <div key={statusItem.key} class={statusItem.className}>
+              <template if:true={statusItem.isLoading}>
+                <span class="prompt-status-dot"></span>
+              </template>
+              <span>{statusItem.text}</span>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template if:true={showGraphSpinner}>
+        <div class="graph-loading-overlay">
+          <lightning-spinner
+            alternative-text="Loading supply network graph"
+            size="small"
+          ></lightning-spinner>
+        </div>
+      </template>
+
+      <template if:true={generatedAtLabel}>
+        <div class="graph-updated-badge">Last updated: {generatedAtLabel}</div>
+      </template>
+
+      <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
+        <div class="node-tooltip-title" data-id="tooltip-title"></div>
+        <div class="node-tooltip-meta">
+          <span class="node-tooltip-label" data-id="tooltip-meta-label">Role</span>
+          <span data-id="tooltip-role"></span>
+        </div>
+        <div class="node-tooltip-note" data-id="tooltip-note"></div>
+      </div>
+    </div>
+
+    <template if:true={showManualRelationshipManager}>
+      <section class="manual-panel slds-m-horizontal_small slds-m-bottom_small">
+        <div class="manual-panel-header">
+          <h3 class="slds-text-heading_small">Manual Relationship Manager</h3>
+          <p class="manual-panel-subtitle">
+            在手動模式下維護 Root Account 的上下游與競爭關係。
+          </p>
+        </div>
+
+        <div class="manual-panel-sections">
+          <section class="manual-section manual-section-list">
+            <h4 class="manual-section-title">Relationship Table</h4>
+            <div class="manual-list">
+              <template if:true={isManualLoading}>
+                <lightning-spinner
+                  alternative-text="Loading manual relationships"
+                  size="small"
+                ></lightning-spinner>
+              </template>
+
+              <template if:true={manualRelationshipsEmpty}>
+                <div class="state-message subtle">
+                  目前沒有手動關係。可先建立第一筆關係。
+                </div>
+              </template>
+
+              <template if:false={manualRelationshipsEmpty}>
+                <div class="manual-list-table-wrap">
+                  <table
+                    class="slds-table slds-table_cell-buffer slds-table_bordered"
+                  >
+                    <thead>
+                      <tr class="slds-line-height_reset">
+                        <th scope="col">Status</th>
+                        <th scope="col">方向</th>
+                        <th scope="col">層級</th>
+                        <th scope="col">對象 Account</th>
+                        <th scope="col">Relation Type</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Updated</th>
+                        <th scope="col">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template for:each={manualRelationships} for:item="row">
+                        <tr key={row.id}>
+                          <td>
+                            <span class={row.badgeClass}
+                              >{row.statusLabel}</span
+                            >
+                          </td>
+                          <td>{row.modeLabel}</td>
+                          <td>{row.pathTypeLabel}</td>
+                          <td>
+                            <template if:true={row.relatedAccountId}>
+                              <button
+                                class="account-link"
+                                data-account-id={row.relatedAccountId}
+                                onclick={handleManualRelatedAccountClick}
+                              >
+                                {row.relatedAccountName}
+                              </button>
+                            </template>
+                            <template if:false={row.relatedAccountId}>
+                              <span>{row.relatedAccountName}</span>
+                            </template>
+                          </td>
+                          <td>{row.relationType}</td>
+                          <td>{row.sourceTypeLabel}</td>
+                          <td>{row.updatedLabel}</td>
+                          <td>
+                            <template if:true={row.isActive}>
+                              <lightning-button-icon
+                                icon-name="utility:block_visitor"
+                                alternative-text="Deactivate"
+                                title="Deactivate"
+                                data-relationship-id={row.id}
+                                onclick={handleDeactivateRelationship}
+                                disabled={disableRelationshipActions}
+                              ></lightning-button-icon>
+                            </template>
+                            <template if:false={row.isActive}>
+                              <lightning-button-icon
+                                icon-name="utility:check"
+                                alternative-text="Activate"
+                                title="Activate"
+                                data-relationship-id={row.id}
+                                onclick={handleActivateRelationship}
+                                disabled={disableRelationshipActions}
+                              ></lightning-button-icon>
+                            </template>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
+          </section>
+
+          <section class="manual-section manual-section-form">
+            <h4 class="manual-section-title">Create Relationship</h4>
+            <div class="manual-form-grid">
+              <div class="manual-form-col">
                 <lightning-combobox
-                    name="graphFilter"
-                    label="View"
-                    value={selectedFilter}
-                    options={filterOptions}
-                    onchange={handleFilterChange}
-                >
-                </lightning-combobox>
+                  label="建立類型"
+                  value={relationshipFormMode}
+                  options={relationshipModeOptions}
+                  onchange={handleRelationshipModeChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-combobox>
+
+                <lightning-record-picker
+                  label="對象 Account"
+                  object-api-name="Account"
+                  value={relationshipFormRelatedAccountId}
+                  onchange={handleRelatedAccountChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-record-picker>
+
+                <lightning-input
+                  label="Relation Type"
+                  data-field="relationType"
+                  value={relationshipFormRelationType}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-input>
+
+                <lightning-combobox
+                  label="Source Type"
+                  data-field="sourceType"
+                  value={relationshipFormSourceType}
+                  options={sourceTypeOptions}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-combobox>
+              </div>
+
+              <div class="manual-form-col">
+                <lightning-input
+                  label="Role"
+                  data-field="role"
+                  value={relationshipFormRole}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-input>
+
+                <lightning-textarea
+                  label="Products"
+                  data-field="products"
+                  value={relationshipFormProducts}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-textarea>
+
+                <lightning-textarea
+                  label="Evidence"
+                  data-field="evidence"
+                  value={relationshipFormEvidence}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-textarea>
+              </div>
             </div>
-            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 toolbar-action">
-                <lightning-button
-                    label="Refresh Graph"
-                    variant="neutral"
-                    onclick={handleRefreshClick}
-                    disabled={isLoading}
-                ></lightning-button>
+
+            <div class="manual-form-actions">
+              <lightning-button
+                label="Create Relationship"
+                variant="brand"
+                onclick={handleCreateRelationship}
+                disabled={disableRelationshipCreate}
+              ></lightning-button>
+              <lightning-button
+                label="Reset"
+                variant="neutral"
+                onclick={handleResetRelationshipForm}
+                disabled={isSavingRelationship}
+              ></lightning-button>
             </div>
-            <template if:true={isTruncated}>
-                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 truncation-note">
-                    Showing first {nodeCount} nodes (capped for performance).
-                </div>
-            </template>
+          </section>
         </div>
-
-        <template if:true={isRefreshingInBackground}>
-            <div class="state-message info">顯示上次分析結果，背景更新中。</div>
-        </template>
-
-        <template if:true={isLoading}>
-            <lightning-spinner alternative-text="Loading supply network graph" size="small"></lightning-spinner>
-            <div class="state-message info">{loadingStatusMessage}</div>
-        </template>
-
-        <template if:true={errorMessage}>
-            <div class="state-message error">{errorMessage}</div>
-        </template>
-
-        <template if:true={showEmptyState}>
-            <div class="state-message">此帳戶目前沒有可顯示的上下游關係資料。</div>
-        </template>
-
-        <template if:true={coverageNote}>
-            <div class="state-message info">{coverageNote}</div>
-        </template>
-
-        <template if:true={generatedAtLabel}>
-            <div class="state-message subtle">Last updated: {generatedAtLabel}</div>
-        </template>
-
-        <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
-            <span class="legend-item">
-                <span class="legend-swatch role-design"></span>
-                IC Design
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-manufacturing"></span>
-                Manufacturing
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-channel"></span>
-                Channel / ODM
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-customer"></span>
-                End Customers
-            </span>
-        </div>
-
-        <div class="graph-shell slds-p-horizontal_small slds-p-bottom_small">
-            <div class="graph" data-id="graph" lwc:dom="manual"></div>
-            <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
-                <div class="node-tooltip-title" data-id="tooltip-title"></div>
-                <div class="node-tooltip-meta">
-                    <span class="node-tooltip-label">Role</span>
-                    <span data-id="tooltip-role"></span>
-                </div>
-                <div class="node-tooltip-note" data-id="tooltip-note"></div>
-            </div>
-        </div>
-    </lightning-card>
+      </section>
+    </template>
+  </lightning-card>
 </template>

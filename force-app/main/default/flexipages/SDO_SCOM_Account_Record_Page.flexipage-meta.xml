@@ -9,6 +9,9 @@
                         <valueListItems>
                             <value>EnableAsBuyer</value>
                         </valueListItems>
+                        <valueListItems>
+                            <value>Account.Prepare_QBR</value>
+                        </valueListItems>
                     </valueList>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
@@ -234,6 +237,76 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
+                    <name>graphName</name>
+                    <value>AccountToPartnerRelationship</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>label</name>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphSupplier1</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Enterprise</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>graphName</name>
+                    <value>PartnerToAccountRelationship</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>label</name>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraph</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphSupplier2</identifier>
+                <visibilityRule>
+                    <booleanFilter>1 OR 2</booleanFilter>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Tier 1</rightValue>
+                    </criteria>
+                    <criteria>
+                        <leftValue>{!Record.Type}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Distributor</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentName>runtime_industries_arcgraph:arcGraphHighlightsPanel</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphSupplierHighlightsPanel</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>label</name>
+                    <value>Details</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>showLabel</name>
+                    <value>true</value>
+                </componentInstanceProperties>
+                <componentName>runtime_industries_arcgraph:arcGraphRecordDetails</componentName>
+                <identifier>runtime_industries_arcgraph_arcGraphSupplierRecordDetails</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>Facet-cmsupplierinfo</name>
+        <type>Facet</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
                     <name>body</name>
                     <value>Facet-61ba3355-7ad1-4684-b0e8-0ce8632348fa</value>
                 </componentInstanceProperties>
@@ -243,6 +316,48 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>flexipage_tab2</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>body</name>
+                    <value>Facet-cmsupplynetworkgraph</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>供應鏈分析</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>tab_cmSupplyNetworkGraph</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.CM_Is_Supplier__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>true</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>body</name>
+                    <value>Facet-cmsupplierinfo</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>供應商資訊</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>tab_cmSupplierInfo</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.CM_Is_Supplier__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>true</rightValue>
+                    </criteria>
+                </visibilityRule>
             </componentInstance>
         </itemInstances>
         <itemInstances>
@@ -289,20 +404,6 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>flexipage_tab</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
-                    <value>Facet-cmsupplynetworkgraph</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>title</name>
-                    <value>Supply Network</value>
-                </componentInstanceProperties>
-                <componentName>flexipage:tab</componentName>
-                <identifier>tab_cmSupplyNetworkGraph</identifier>
             </componentInstance>
         </itemInstances>
         <name>Facet-2cc70eea-36e0-4581-9250-7dd04611049c</name>
@@ -411,9 +512,9 @@
             <componentInstance>
                 <componentInstanceProperties>
                     <name>maxNodes</name>
-                    <value>150</value>
+                    <value>15</value>
                 </componentInstanceProperties>
-                <componentName>c:cmSupplyNetworkGraph</componentName>
+                <componentName>cmSupplyNetworkGraph</componentName>
                 <identifier>c_cmSupplyNetworkGraph</identifier>
             </componentInstance>
         </itemInstances>

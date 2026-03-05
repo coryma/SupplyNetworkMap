@@ -9,12 +9,25 @@ public without sharing class CMSupplyNetworkSeedData {
     private class EdgeDefinition {
         String fromName;
         String toName;
-        String relationshipType;
+        String edgeCategory;
+        String relationType;
+        String role;
+        String evidence;
 
-        EdgeDefinition(String fromAccountName, String toAccountName, String typeValue) {
+        EdgeDefinition(
+            String fromAccountName,
+            String toAccountName,
+            String edgeCategoryValue,
+            String relationTypeValue,
+            String roleValue,
+            String evidenceValue
+        ) {
             fromName = fromAccountName;
             toName = toAccountName;
-            relationshipType = typeValue;
+            edgeCategory = edgeCategoryValue;
+            relationType = relationTypeValue;
+            role = roleValue;
+            evidence = evidenceValue;
         }
     }
 
@@ -38,7 +51,7 @@ public without sharing class CMSupplyNetworkSeedData {
         Map<String, Account> accountByName = new Map<String, Account>();
         List<String> personAccountNames = new List<String>();
         for (Account existingAccount : [
-            SELECT Id, Name, IsPartner, IsPersonAccount
+            SELECT Id, Name, IsPersonAccount
             FROM Account
             WHERE Name IN :requiredAccountNames
         ]) {
@@ -73,52 +86,19 @@ public without sharing class CMSupplyNetworkSeedData {
             }
         }
 
-        List<Account> accountsToPartnerEnable = new List<Account>();
-        for (Account accountRecord : [
-            SELECT Id, Name, IsPartner, IsPersonAccount
-            FROM Account
-            WHERE Name IN :requiredAccountNames
-        ]) {
-            accountByName.put(accountRecord.Name, accountRecord);
-            if (accountRecord.IsPersonAccount) {
-                personAccountNames.add(accountRecord.Name);
-                continue;
-            }
-            if (accountRecord.IsPartner != true) {
-                accountsToPartnerEnable.add(
-                    new Account(
-                        Id = accountRecord.Id,
-                        IsPartner = true
-                    )
-                );
-            }
-        }
-
-        if (!personAccountNames.isEmpty()) {
-            List<String> uniquePersonAccounts = new List<String>(new Set<String>(personAccountNames));
-            throw new AuraHandledException(
-                'Seed requires business Account records (not Person Accounts): ' +
-                String.join(uniquePersonAccounts, ', ')
-            );
-        }
-
-        if (!accountsToPartnerEnable.isEmpty()) {
-            update accountsToPartnerEnable;
-        }
-
         List<EdgeDefinition> relationshipsToSeed = new List<EdgeDefinition>{
-            new EdgeDefinition('TSMC', 'Quincy', 'Supplier'),
-            new EdgeDefinition('ASE', 'Quincy', 'Supplier'),
-            new EdgeDefinition('Amkor', 'Quincy', 'Supplier'),
-            new EdgeDefinition('Quincy', 'WPG', 'Distributor'),
-            new EdgeDefinition('Quincy', 'WT Microelectronics', 'Distributor'),
-            new EdgeDefinition('WPG', 'WNC', 'Distributor'),
-            new EdgeDefinition('WT Microelectronics', 'WNC', 'Distributor'),
-            new EdgeDefinition('WNC', 'Verizon', 'Supplier'),
-            new EdgeDefinition('WNC', 'AT&T', 'Supplier'),
-            new EdgeDefinition('WNC', 'T-Mobile US', 'Supplier'),
-            new EdgeDefinition('WNC', 'Ford', 'Supplier'),
-            new EdgeDefinition('WNC', 'General Motors', 'Supplier')
+            new EdgeDefinition('TSMC', 'Quincy', 'DOWNSTREAM', 'Foundry', '晶圓代工供應商', '提供先進製程晶圓代工。'),
+            new EdgeDefinition('ASE', 'Quincy', 'DOWNSTREAM', 'OSAT', '封裝測試供應商', '提供封裝與測試服務。'),
+            new EdgeDefinition('Amkor', 'Quincy', 'DOWNSTREAM', 'OSAT', '封裝測試供應商', '支援後段封測產能。'),
+            new EdgeDefinition('Quincy', 'WPG', 'DOWNSTREAM', 'Distributor', 'IC 通路代理商', '提供通路供貨與 FAE 支援。'),
+            new EdgeDefinition('Quincy', 'WT Microelectronics', 'DOWNSTREAM', 'Distributor', 'IC 通路代理商', '提供通路供貨與技術服務。'),
+            new EdgeDefinition('WPG', 'WNC', 'INDIRECT_PATH', 'Channel Partner', '網通設備通路/整合', '通路代理對接網通製造客戶。'),
+            new EdgeDefinition('WT Microelectronics', 'WNC', 'INDIRECT_PATH', 'Channel Partner', '網通設備通路/整合', '通路代理對接網通製造客戶。'),
+            new EdgeDefinition('WNC', 'Verizon', 'INDIRECT_PATH', 'Telecom Operator', '電信營運商客戶', '5G FWA 家用路由器導入。'),
+            new EdgeDefinition('WNC', 'AT&T', 'INDIRECT_PATH', 'Telecom Operator', '電信營運商客戶', '5G FWA 方案導入。'),
+            new EdgeDefinition('WNC', 'T-Mobile US', 'INDIRECT_PATH', 'Telecom Operator', '電信營運商客戶', '5G FWA 方案導入。'),
+            new EdgeDefinition('WNC', 'Ford', 'INDIRECT_PATH', 'Automaker', '車廠客戶', '車聯網模組整合導入。'),
+            new EdgeDefinition('WNC', 'General Motors', 'INDIRECT_PATH', 'Automaker', '車廠客戶', '車聯網模組整合導入。')
         };
 
         Set<Id> inScopeAccountIds = new Set<Id>();
@@ -130,22 +110,28 @@ public without sharing class CMSupplyNetworkSeedData {
         }
 
         Set<String> existingRelationshipKeys = new Set<String>();
-        for (AccountRelationship relationshipRecord : [
-            SELECT Id, AccountFromId, AccountToId, Type
-            FROM AccountRelationship
-            WHERE AccountFromId IN :inScopeAccountIds
-            AND AccountToId IN :inScopeAccountIds
+        for (CM_Supply_Relationship__c relationshipRecord : [
+            SELECT
+                Id,
+                Source_Account__c,
+                Target_Account__c,
+                Relation_Type__c,
+                Edge_Category__c
+            FROM CM_Supply_Relationship__c
+            WHERE Source_Account__c IN :inScopeAccountIds
+            AND Target_Account__c IN :inScopeAccountIds
         ]) {
             existingRelationshipKeys.add(
                 buildRelationshipKey(
-                    relationshipRecord.AccountFromId,
-                    relationshipRecord.AccountToId,
-                    relationshipRecord.Type
+                    relationshipRecord.Source_Account__c,
+                    relationshipRecord.Target_Account__c,
+                    relationshipRecord.Relation_Type__c,
+                    relationshipRecord.Edge_Category__c
                 )
             );
         }
 
-        List<AccountRelationship> relationshipInserts = new List<AccountRelationship>();
+        List<CM_Supply_Relationship__c> relationshipInserts = new List<CM_Supply_Relationship__c>();
         for (EdgeDefinition edgeDefinition : relationshipsToSeed) {
             Account fromAccount = accountByName.get(edgeDefinition.fromName);
             Account toAccount = accountByName.get(edgeDefinition.toName);
@@ -156,7 +142,8 @@ public without sharing class CMSupplyNetworkSeedData {
             String relationshipKey = buildRelationshipKey(
                 fromAccount.Id,
                 toAccount.Id,
-                edgeDefinition.relationshipType
+                edgeDefinition.relationType,
+                edgeDefinition.edgeCategory
             );
             if (existingRelationshipKeys.contains(relationshipKey)) {
                 continue;
@@ -164,15 +151,16 @@ public without sharing class CMSupplyNetworkSeedData {
 
             existingRelationshipKeys.add(relationshipKey);
             relationshipInserts.add(
-                new AccountRelationship(
-                    Name = buildRelationshipName(
-                        edgeDefinition.fromName,
-                        edgeDefinition.toName,
-                        edgeDefinition.relationshipType
-                    ),
-                    AccountFromId = fromAccount.Id,
-                    AccountToId = toAccount.Id,
-                    Type = edgeDefinition.relationshipType
+                new CM_Supply_Relationship__c(
+                    Source_Account__c = fromAccount.Id,
+                    Target_Account__c = toAccount.Id,
+                    Edge_Category__c = edgeDefinition.edgeCategory,
+                    Relation_Type__c = edgeDefinition.relationType,
+                    Role__c = edgeDefinition.role,
+                    Evidence__c = edgeDefinition.evidence,
+                    Confidence__c = 0.95,
+                    Source_Type__c = 'PUBLIC_INFO',
+                    Is_Active__c = true
                 )
             );
         }
@@ -189,13 +177,8 @@ public without sharing class CMSupplyNetworkSeedData {
         return result;
     }
 
-    private static String buildRelationshipKey(Id fromId, Id toId, String relationshipType) {
-        return String.valueOf(fromId) + '|' + String.valueOf(toId) + '|' + String.valueOf(relationshipType);
-    }
-
-    private static String buildRelationshipName(String fromName, String toName, String relationshipType) {
-        String rawName = fromName + ' -> ' + toName + ' (' + relationshipType + ')';
-        return rawName.length() > 80 ? rawName.substring(0, 80) : rawName;
+    private static String buildRelationshipKey(Id fromId, Id toId, String relationType, String edgeCategory) {
+        return String.valueOf(fromId) + '|' + String.valueOf(toId) + '|' + String.valueOf(relationType) + '|' + String.valueOf(edgeCategory);
     }
 
     private static Id getBusinessAccountRecordTypeId() {
