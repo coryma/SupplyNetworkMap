@@ -1789,7 +1789,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get laneExpandButtonIconName() {
-    return this.laneExpandModeEnabled ? "utility:dash" : "utility:add";
+    return "utility:pin";
   }
 
   get laneExpandButtonClass() {
