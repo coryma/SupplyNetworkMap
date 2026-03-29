@@ -2,14 +2,18 @@ import { api, LightningElement, track } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
 import { loadScript } from "lightning/platformResourceLoader";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
+import lang from "@salesforce/i18n/lang";
+import locale from "@salesforce/i18n/locale";
 import cytoscapeResource from "@salesforce/resourceUrl/cytoscape";
 import getGraph from "@salesforce/apex/CMSupplyNetworkGraphController.getGraph";
 import getManualRelationships from "@salesforce/apex/CMSupplyNetworkGraphController.getManualRelationships";
 import createManualRelationship from "@salesforce/apex/CMSupplyNetworkGraphController.createManualRelationship";
 import deactivateManualRelationship from "@salesforce/apex/CMSupplyNetworkGraphController.deactivateManualRelationship";
 import activateManualRelationship from "@salesforce/apex/CMSupplyNetworkGraphController.activateManualRelationship";
+import deleteManualRelationship from "@salesforce/apex/CMSupplyNetworkGraphController.deleteManualRelationship";
 import analyzeWncImpact from "@salesforce/apex/CMSupplyNetworkGraphController.analyzeWncImpact";
 import smartBuildRelationships from "@salesforce/apex/CMSupplyNetworkGraphController.smartBuildRelationships";
+import getRuntimeConfig from "@salesforce/apex/CMSupplyNetworkGraphController.getRuntimeConfig";
 import {
   buildFilteredElements,
   buildStoryElements,
@@ -17,12 +21,6 @@ import {
   DISPLAY_MODES,
   FILTER_VALUES
 } from "./cmSupplyNetworkGraphUtils";
-
-const FILTER_OPTIONS = [
-  { label: "All", value: FILTER_VALUES.ALL },
-  { label: "Upstream", value: FILTER_VALUES.UPSTREAM },
-  { label: "Downstream", value: FILTER_VALUES.DOWNSTREAM }
-];
 
 const STORY_HORIZONTAL_SPACING = 280;
 const STORY_VERTICAL_SPACING = 210;
@@ -45,30 +43,33 @@ const NAVIGATION_GUARD_WINDOW_MS = 500;
 const PAN_NAVIGATION_GUARD_WINDOW_MS = 120;
 const DRAG_NAVIGATION_GUARD_WINDOW_MS = 280;
 const CACHE_KEY_PREFIX = "cmSupplyNetworkGraph";
-const LOADING_STATUS_MESSAGE = "正在載入上下游關係圖...";
-const BACKGROUND_REFRESHING_STATUS_MESSAGE = "顯示上次結果，背景更新中...";
-const WNC_IMPACT_LOADING_STATUS_MESSAGE =
-  "正在分析供應鏈對 WNC 的影響（約需 10~45 秒），完成後會自動更新。";
-const SMART_BUILD_LOADING_STATUS_MESSAGE =
-  "正在智能建立供應鏈關係（約需 15~60 秒），完成後會自動更新。";
+const SMART_BUILD_MODES = Object.freeze({
+  UPSERT: "UPSERT",
+  FULL_REBUILD: "FULL_REBUILD"
+});
 const COMPETITOR_DIRECTION = "COMPETITOR";
-const PREFERENCE_STORAGE_KEY_PREFIX = `${CACHE_KEY_PREFIX}:preferences:v2`;
+const ALL_SUPPLY_SCENARIOS = "ALL_SCENARIOS";
+const DEFAULT_SUPPLY_SCENARIO_CODES = Object.freeze([
+  ALL_SUPPLY_SCENARIOS,
+  "FWA_5G",
+  "ENTERPRISE_WIFI_AP",
+  "AUTOMOTIVE_TELEMATICS",
+  "LEGACY_UNSCOPED"
+]);
+const DEFAULT_MANUAL_SUPPLY_SCENARIO_CODES = Object.freeze(
+  DEFAULT_SUPPLY_SCENARIO_CODES.filter(
+    (scenarioCode) => scenarioCode !== ALL_SUPPLY_SCENARIOS
+  )
+);
+const DEFAULT_AI_SUPPLY_SCENARIO_SET = new Set([
+  "FWA_5G",
+  "ENTERPRISE_WIFI_AP",
+  "AUTOMOTIVE_TELEMATICS"
+]);
+const PREFERENCE_STORAGE_KEY_PREFIX = `${CACHE_KEY_PREFIX}:preferences:v3`;
+const DEBUG_JSON_STORAGE_KEY_PREFIX = `${CACHE_KEY_PREFIX}:debugJson:v1`;
 const WNC_IMPACT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const MANUAL_RELATIONSHIP_LIMIT = 200;
-const RELATIONSHIP_MODE_OPTIONS = [
-  { label: "新增上游 (Supplier -> Root)", value: "UPSTREAM" },
-  { label: "新增下游 (Root -> Customer)", value: "DOWNSTREAM" },
-  { label: "新增競爭 (Root -> Competitor)", value: "COMPETITOR" }
-];
-const SOURCE_TYPE_OPTIONS = [
-  { label: "PUBLIC_INFO", value: "PUBLIC_INFO" },
-  { label: "INFERRED", value: "INFERRED" }
-];
-const RELATIONSHIP_MODE_LABELS = Object.freeze({
-  UPSTREAM: "上游",
-  DOWNSTREAM: "下游",
-  COMPETITOR: "競爭"
-});
 const DEFAULT_RELATION_TYPE_BY_MODE = Object.freeze({
   UPSTREAM: "Supplier",
   DOWNSTREAM: "Customer",
@@ -78,12 +79,500 @@ const EMPTY_RELATIONSHIP_FORM = Object.freeze({
   mode: "UPSTREAM",
   relatedAccountId: null,
   relationType: "Supplier",
+  supplyScenario: null,
   role: "",
   products: "",
   evidence: "",
   confidence: 0.8,
   sourceType: "PUBLIC_INFO"
 });
+
+const I18N = {
+  zh: {
+    filterOptions: [
+      { label: "全部", value: FILTER_VALUES.ALL },
+      { label: "上游", value: FILTER_VALUES.UPSTREAM },
+      { label: "下游", value: FILTER_VALUES.DOWNSTREAM }
+    ],
+    actions: {
+      smartBuildFullRebuild: "智能建立 - 全部重繪",
+      smartBuildUpsert: "智能建立 - 部分更新",
+      analyzeSupplyChain: "供應鏈分析",
+      openManualManager: "手動建立關聯",
+      zoomOutGraph: "縮小關係圖",
+      fitGraph: "置中並適應視窗",
+      zoomInGraph: "放大關係圖",
+      toggleFullscreen: "切換全螢幕",
+      refreshGraph: "重新整理關係圖",
+      deactivate: "停用",
+      activate: "啟用",
+      delete: "刪除",
+      createRelationship: "建立關係",
+      reset: "重設",
+      expandLaneLayout: "展開灰匡公司佈局",
+      collapseLaneLayout: "收合灰匡公司佈局",
+      expandAnalysis: "展開分析",
+      collapseAnalysis: "收合分析"
+    },
+    aria: {
+      supplyNetworkActions: "供應鏈操作",
+      graphCanvasActions: "圖表畫布操作"
+    },
+    altText: {
+      zoomOut: "縮小關係圖",
+      fitGraph: "置中並適應視窗",
+      zoomIn: "放大關係圖",
+      toggleFullscreen: "切換全螢幕",
+      refreshGraph: "重新整理關係圖",
+      toggleLaneExpandMode: "切換灰匡展開模式",
+      loadingSupplyNetworkGraph: "正在載入供應鏈關係圖",
+      loadingManualRelationships: "正在載入手動關係"
+    },
+    statusMessages: {
+      loading: "正在載入上下游關係圖...",
+      backgroundRefreshing: "顯示上次結果，背景更新中...",
+      wncImpactLoading:
+        "正在分析供應鏈影響（約需 10~45 秒），完成後會自動更新。",
+      smartBuildLoadingByMode: {
+        [SMART_BUILD_MODES.UPSERT]:
+          "正在智能建立供應鏈關係（部分更新，約需 15~60 秒），完成後會自動更新。",
+        [SMART_BUILD_MODES.FULL_REBUILD]:
+          "正在智能建立供應鏈關係（全部重繪，約需 15~60 秒），完成後會自動更新。"
+      }
+    },
+    smartBuildModeLabels: {
+      [SMART_BUILD_MODES.UPSERT]: "部分更新",
+      [SMART_BUILD_MODES.FULL_REBUILD]: "全部重繪"
+    },
+    supplyScenarioLabels: {
+      [ALL_SUPPLY_SCENARIOS]: "全部場景",
+      FWA_5G: "5G FWA",
+      ENTERPRISE_WIFI_AP: "企業級 Wi-Fi AP",
+      AUTOMOTIVE_TELEMATICS: "車聯網模組",
+      LEGACY_UNSCOPED: "Legacy / Mixed"
+    },
+    relationshipModeOptions: [
+      { label: "新增上游 (Supplier -> Root)", value: "UPSTREAM" },
+      { label: "新增下游 (Root -> Customer)", value: "DOWNSTREAM" },
+      { label: "新增競爭 (Root -> Competitor)", value: "COMPETITOR" }
+    ],
+    relationshipModeLabels: {
+      UPSTREAM: "上游",
+      DOWNSTREAM: "下游",
+      COMPETITOR: "競爭"
+    },
+    sourceTypeOptions: [
+      { label: "公開資訊", value: "PUBLIC_INFO" },
+      { label: "推論", value: "INFERRED" }
+    ],
+    sourceTypeLabels: {
+      PUBLIC_INFO: "公開資訊",
+      INFERRED: "推論"
+    },
+    pathTypeLabels: {
+      DIRECT: "直接",
+      INDIRECT: "間接"
+    },
+    relationshipStatusLabels: {
+      active: "啟用",
+      inactive: "停用"
+    },
+    tooltips: {
+      role: "角色",
+      relation: "關係",
+      directionPrefix: "方向",
+      marketRiskPrefix: "市場風險",
+      uncategorizedRole: "未分類",
+      sourceFallback: "來源",
+      targetFallback: "目標",
+      relationFallback: "關聯"
+    },
+    edgeDirectionLabels: {
+      INDIRECT_PATH: "間接供應鏈路徑",
+      UPSTREAM: "上游供應",
+      DOWNSTREAM: "下游客戶",
+      COMPETITOR: "同業競爭",
+      DEFAULT: "關聯"
+    },
+    messages: {
+      genericError: "無法載入上下游關係圖。",
+      emptyState: "目前沒有可顯示的上下游關係資料。",
+      noManualRelationships: "目前沒有手動關係。可先建立第一筆關係。",
+      refreshGraphTooltip: "依目前關聯紀錄重繪關係圖，並重新整理版面置中。",
+      cachedImpactTooltip: "目前顯示上次分析結果。按供應鏈分析可重新分析。",
+      analyzeImpactTooltip: "執行供應鏈影響分析。",
+      impactAnalysisTitleDefault: "供應鏈影響分析",
+      impactAnalysisTitleSuffix: " 影響分析",
+      lastUpdatedPrefix: "最後更新：",
+      wncAnalysisUpdatedPrefix: "WNC 分析更新：",
+      unknownAccountLabel: "（未知帳戶）",
+      summaryMissing: "分析已完成，但沒有可顯示的摘要。"
+    },
+    impactSections: {
+      overallAssessment: "整體評估",
+      keyRisks: "主要風險",
+      positiveSignals: "正向訊號",
+      recommendedActions: "建議行動"
+    },
+    legend: {
+      icDesign: "IC 設計",
+      manufacturing: "製造",
+      channelOdm: "通路 / ODM",
+      endCustomers: "終端客戶",
+      competitors: "競爭者"
+    },
+    manualManager: {
+      title: "手動關係管理",
+      relationshipTableTitle: "關係表",
+      createRelationshipTitle: "建立關係"
+    },
+    tableHeaders: {
+      status: "狀態",
+      direction: "方向",
+      level: "層級",
+      relatedAccount: "對象 Account",
+      scenario: "場景",
+      relationType: "關係類型",
+      source: "來源",
+      updated: "更新時間",
+      action: "操作"
+    },
+    formLabels: {
+      supplyScenario: "供應鏈場景",
+      mode: "建立類型",
+      relatedAccount: "對象 Account",
+      relationType: "關係類型",
+      sourceType: "來源類型",
+      role: "角色",
+      products: "產品",
+      evidence: "佐證"
+    },
+    validation: {
+      selectAccountTitle: "請選擇 Account",
+      selectAccountMessage: "建立關係前請先選擇對象 Account。",
+      selectScenarioTitle: "請選擇場景",
+      selectScenarioMessage: "建立關係前請先指定供應鏈場景。",
+      invalidDataTitle: "資料錯誤",
+      selfRelationshipMessage: "無法建立自己到自己的關係。"
+    },
+    toasts: {
+      scenarioConfigLoadFailed: "場景設定載入失敗",
+      analysisCompletedTitle: "分析完成",
+      analysisFailedTitle: "分析失敗",
+      smartBuildCompletedTitle: "智能建立完成",
+      smartBuildFailedTitle: "智能建立失敗",
+      manualListLoadFailed: "關係清單載入失敗",
+      createSuccessTitle: "建立成功",
+      createSuccessMessage: "已建立手動供應鏈關係。",
+      createFailedTitle: "建立失敗",
+      deactivateSuccessTitle: "已停用",
+      deactivateSuccessMessage: "關係已停用，不會再顯示在圖上。",
+      deactivateFailedTitle: "停用失敗",
+      activateSuccessTitle: "已啟用",
+      activateSuccessMessage: "關係已重新啟用並回到圖上。",
+      activateFailedTitle: "啟用失敗",
+      deleteSuccessTitle: "已刪除",
+      deleteSuccessMessage: "已刪除停用關係。",
+      deleteFailedTitle: "刪除失敗"
+    },
+    graphContent: {
+      edgeFallbackRelation: "關聯",
+      laneLabels: {
+        upstreamTier1: "上游一階供應",
+        upstreamTier2: "上游二階供應",
+        upstreamTier3: "上游多階供應",
+        downstreamTier1: "下游一階客戶",
+        downstreamTier2: "下游二階客戶",
+        downstreamTier3: "下游多階客戶",
+        competitor: "同業競爭"
+      },
+      nodeInsights: {
+        defaultRole: "關聯角色",
+        defaultNote: "AI 產生的供應鏈關係。",
+        rootRole: "IC 設計原廠",
+        rootNote: "關鍵產品: 5G Modem、Wi-Fi 7 SoC、Snapdragon 平台",
+        upstreamRole: "上游製造與封測夥伴",
+        upstreamNote: "提供晶圓代工、封裝與測試能力。",
+        competitorRole: "同業競爭者",
+        competitorNote: "與核心節點在關鍵產品線與市場上形成競爭。",
+        downstreamCustomerRole: "終端採用客戶",
+        downstreamCustomerNote: "將方案導入企業網通、車聯網或電信場景。",
+        downstreamChannelRole: "通路/ODM 系統整合",
+        downstreamChannelNote: "負責供貨、FAE 支援與產品整機整合。",
+        relatedNodeRole: "關聯節點",
+        relatedNodeNote: "此節點與主供應鏈存在關聯。"
+      }
+    }
+  },
+  en: {
+    filterOptions: [
+      { label: "All", value: FILTER_VALUES.ALL },
+      { label: "Upstream", value: FILTER_VALUES.UPSTREAM },
+      { label: "Downstream", value: FILTER_VALUES.DOWNSTREAM }
+    ],
+    actions: {
+      smartBuildFullRebuild: "Full Rebuild",
+      smartBuildUpsert: "Partial Update",
+      analyzeSupplyChain: "Supply Chain Analysis",
+      openManualManager: "Manual Relationship Manager",
+      zoomOutGraph: "Zoom out graph",
+      fitGraph: "Fit graph to view",
+      zoomInGraph: "Zoom in graph",
+      toggleFullscreen: "Toggle fullscreen",
+      refreshGraph: "Refresh graph",
+      deactivate: "Deactivate",
+      activate: "Activate",
+      delete: "Delete",
+      createRelationship: "Create Relationship",
+      reset: "Reset",
+      expandLaneLayout: "Expand grouped lanes",
+      collapseLaneLayout: "Collapse grouped lanes",
+      expandAnalysis: "Expand Analysis",
+      collapseAnalysis: "Collapse Analysis"
+    },
+    aria: {
+      supplyNetworkActions: "Supply network actions",
+      graphCanvasActions: "Graph canvas actions"
+    },
+    altText: {
+      zoomOut: "Zoom out",
+      fitGraph: "Fit graph",
+      zoomIn: "Zoom in",
+      toggleFullscreen: "Toggle fullscreen",
+      refreshGraph: "Refresh graph",
+      toggleLaneExpandMode: "Toggle lane expand mode",
+      loadingSupplyNetworkGraph: "Loading supply network graph",
+      loadingManualRelationships: "Loading manual relationships"
+    },
+    statusMessages: {
+      loading: "Loading supply network graph...",
+      backgroundRefreshing: "Showing cached results while refreshing in the background...",
+      wncImpactLoading:
+        "Analyzing supply chain impact (about 10-45 seconds). The view will refresh automatically when complete.",
+      smartBuildLoadingByMode: {
+        [SMART_BUILD_MODES.UPSERT]:
+          "Smart building supply chain relationships (partial update, about 15-60 seconds). The view will refresh automatically when complete.",
+        [SMART_BUILD_MODES.FULL_REBUILD]:
+          "Smart building supply chain relationships (full rebuild, about 15-60 seconds). The view will refresh automatically when complete."
+      }
+    },
+    smartBuildModeLabels: {
+      [SMART_BUILD_MODES.UPSERT]: "Partial Update",
+      [SMART_BUILD_MODES.FULL_REBUILD]: "Full Rebuild"
+    },
+    supplyScenarioLabels: {
+      [ALL_SUPPLY_SCENARIOS]: "All Scenarios",
+      FWA_5G: "5G FWA",
+      ENTERPRISE_WIFI_AP: "Enterprise Wi-Fi AP",
+      AUTOMOTIVE_TELEMATICS: "Automotive Telematics",
+      LEGACY_UNSCOPED: "Legacy / Mixed"
+    },
+    relationshipModeOptions: [
+      { label: "Add Upstream (Supplier -> Root)", value: "UPSTREAM" },
+      { label: "Add Downstream (Root -> Customer)", value: "DOWNSTREAM" },
+      { label: "Add Competitor (Root -> Competitor)", value: "COMPETITOR" }
+    ],
+    relationshipModeLabels: {
+      UPSTREAM: "Upstream",
+      DOWNSTREAM: "Downstream",
+      COMPETITOR: "Competitor"
+    },
+    sourceTypeOptions: [
+      { label: "Public Info", value: "PUBLIC_INFO" },
+      { label: "Inferred", value: "INFERRED" }
+    ],
+    sourceTypeLabels: {
+      PUBLIC_INFO: "Public Info",
+      INFERRED: "Inferred"
+    },
+    pathTypeLabels: {
+      DIRECT: "Direct",
+      INDIRECT: "Indirect"
+    },
+    relationshipStatusLabels: {
+      active: "Active",
+      inactive: "Inactive"
+    },
+    tooltips: {
+      role: "Role",
+      relation: "Relation",
+      directionPrefix: "Direction",
+      marketRiskPrefix: "Market risk",
+      uncategorizedRole: "Uncategorized",
+      sourceFallback: "Source",
+      targetFallback: "Target",
+      relationFallback: "Related"
+    },
+    edgeDirectionLabels: {
+      INDIRECT_PATH: "Indirect Supply Path",
+      UPSTREAM: "Upstream Supply",
+      DOWNSTREAM: "Downstream Customer",
+      COMPETITOR: "Competitor",
+      DEFAULT: "Related"
+    },
+    messages: {
+      genericError: "Unable to load the supply network graph.",
+      emptyState: "No upstream or downstream relationship data is available.",
+      noManualRelationships:
+        "There are no manual relationships yet. Create the first one to get started.",
+      refreshGraphTooltip:
+        "Rebuild the graph from the current relationship records and refit the layout.",
+      cachedImpactTooltip:
+        "Showing the most recent analysis. Run Supply Chain Analysis again to refresh it.",
+      analyzeImpactTooltip: "Run supply chain impact analysis.",
+      impactAnalysisTitleDefault: "Supply Chain Impact Analysis",
+      impactAnalysisTitleSuffix: " Impact Analysis",
+      lastUpdatedPrefix: "Last updated: ",
+      wncAnalysisUpdatedPrefix: "WNC Analysis updated: ",
+      unknownAccountLabel: "(Unknown Account)",
+      summaryMissing: "Analysis completed, but no summary was returned."
+    },
+    impactSections: {
+      overallAssessment: "Overall Assessment",
+      keyRisks: "Key Risks",
+      positiveSignals: "Positive Signals",
+      recommendedActions: "Recommended Actions"
+    },
+    legend: {
+      icDesign: "IC Design",
+      manufacturing: "Manufacturing",
+      channelOdm: "Channel / ODM",
+      endCustomers: "End Customers",
+      competitors: "Competitors"
+    },
+    manualManager: {
+      title: "Manual Relationship Manager",
+      relationshipTableTitle: "Relationship Table",
+      createRelationshipTitle: "Create Relationship"
+    },
+    tableHeaders: {
+      status: "Status",
+      direction: "Direction",
+      level: "Level",
+      relatedAccount: "Related Account",
+      scenario: "Scenario",
+      relationType: "Relation Type",
+      source: "Source",
+      updated: "Updated",
+      action: "Action"
+    },
+    formLabels: {
+      supplyScenario: "Supply Scenario",
+      mode: "Create Mode",
+      relatedAccount: "Related Account",
+      relationType: "Relation Type",
+      sourceType: "Source Type",
+      role: "Role",
+      products: "Products",
+      evidence: "Evidence"
+    },
+    validation: {
+      selectAccountTitle: "Select an Account",
+      selectAccountMessage:
+        "Choose a related Account before creating a relationship.",
+      selectScenarioTitle: "Select a Scenario",
+      selectScenarioMessage:
+        "Choose a supply scenario before creating a relationship.",
+      invalidDataTitle: "Invalid Data",
+      selfRelationshipMessage:
+        "A relationship cannot be created from the root account to itself."
+    },
+    toasts: {
+      scenarioConfigLoadFailed: "Failed to load scenario settings",
+      analysisCompletedTitle: "Analysis Complete",
+      analysisFailedTitle: "Analysis Failed",
+      smartBuildCompletedTitle: "Smart Build Complete",
+      smartBuildFailedTitle: "Smart Build Failed",
+      manualListLoadFailed: "Failed to load relationships",
+      createSuccessTitle: "Relationship Created",
+      createSuccessMessage: "The manual supply chain relationship was created.",
+      createFailedTitle: "Create Failed",
+      deactivateSuccessTitle: "Relationship Deactivated",
+      deactivateSuccessMessage:
+        "The relationship was deactivated and will no longer appear on the graph.",
+      deactivateFailedTitle: "Deactivate Failed",
+      activateSuccessTitle: "Relationship Activated",
+      activateSuccessMessage:
+        "The relationship was reactivated and restored to the graph.",
+      activateFailedTitle: "Activate Failed",
+      deleteSuccessTitle: "Relationship Deleted",
+      deleteSuccessMessage: "The inactive relationship was deleted.",
+      deleteFailedTitle: "Delete Failed"
+    },
+    graphContent: {
+      edgeFallbackRelation: "Related",
+      laneLabels: {
+        upstreamTier1: "Tier 1 Upstream Suppliers",
+        upstreamTier2: "Tier 2 Upstream Suppliers",
+        upstreamTier3: "Multi-tier Upstream Suppliers",
+        downstreamTier1: "Tier 1 Downstream Customers",
+        downstreamTier2: "Tier 2 Downstream Customers",
+        downstreamTier3: "Multi-tier Downstream Customers",
+        competitor: "Competitors"
+      },
+      nodeInsights: {
+        defaultRole: "Related Role",
+        defaultNote: "AI-generated supply chain relationship.",
+        rootRole: "IC Design Company",
+        rootNote:
+          "Key products: 5G Modem, Wi-Fi 7 SoC, Snapdragon platform",
+        upstreamRole: "Upstream manufacturing and OSAT partners",
+        upstreamNote: "Provides foundry, packaging, and test capabilities.",
+        competitorRole: "Competitor",
+        competitorNote:
+          "Competes with the core node across key product lines and markets.",
+        downstreamCustomerRole: "End-customer adopter",
+        downstreamCustomerNote:
+          "Deploys the solution into enterprise networking, automotive, or telecom scenarios.",
+        downstreamChannelRole: "Channel / ODM integrator",
+        downstreamChannelNote:
+          "Handles fulfillment, FAE support, and full-system integration.",
+        relatedNodeRole: "Related Node",
+        relatedNodeNote: "This node is connected to the main supply chain."
+      }
+    }
+  }
+};
+
+function normalizeLanguageCode(rawValue) {
+  return typeof rawValue === "string"
+    ? rawValue.toLowerCase().replace(/_/g, "-")
+    : "";
+}
+
+function isTraditionalChineseLocale() {
+  const normalizedLang = normalizeLanguageCode(lang);
+  const normalizedLocale = normalizeLanguageCode(locale);
+  const code = normalizedLang || normalizedLocale;
+
+  return (
+    code.startsWith("zh-hant") ||
+    code.startsWith("zh-tw") ||
+    code.startsWith("zh-hk") ||
+    code.startsWith("zh-mo")
+  );
+}
+
+const DEFAULT_UI_LANGUAGE = isTraditionalChineseLocale() ? "zh" : "en";
+const DEFAULT_I18N = I18N[DEFAULT_UI_LANGUAGE];
+
+function buildSupplyScenarioOptions(bundle) {
+  return DEFAULT_SUPPLY_SCENARIO_CODES.map((scenarioCode) => ({
+    label:
+      bundle?.supplyScenarioLabels?.[scenarioCode] ||
+      scenarioCode.replace(/_/g, " "),
+    value: scenarioCode
+  }));
+}
+
+function buildManualSupplyScenarioOptions(bundle) {
+  return DEFAULT_MANUAL_SUPPLY_SCENARIO_CODES.map((scenarioCode) => ({
+    label:
+      bundle?.supplyScenarioLabels?.[scenarioCode] ||
+      scenarioCode.replace(/_/g, " "),
+    value: scenarioCode
+  }));
+}
 
 const CYTOSCAPE_STYLE = [
   {
@@ -156,6 +645,15 @@ const CYTOSCAPE_STYLE = [
     style: {
       "background-color": "#fee2e2",
       "border-color": "#ef4444"
+    }
+  },
+  {
+    selector: "node.wnc-focus",
+    style: {
+      "background-color": "#87CFFF",
+      "border-color": "#0f766e",
+      "border-width": 3,
+      color: "#0f172a"
     }
   },
   {
@@ -340,16 +838,20 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   @api maxNodes = 15;
   @api displayMode = DISPLAY_MODES.STORY;
   @api autoPromptEnabled = false;
+  @track selectedSupplyScenario = ALL_SUPPLY_SCENARIOS;
   @track selectedFilter = FILTER_VALUES.ALL;
   @track relationshipForm = { ...EMPTY_RELATIONSHIP_FORM };
   @track manualRelationships = [];
+  @track runtimeSupplyScenarioOptions = buildSupplyScenarioOptions(DEFAULT_I18N);
+  @track runtimeManualSupplyScenarioOptions =
+    buildManualSupplyScenarioOptions(DEFAULT_I18N);
 
   graphResponse;
   isLoading = false;
   errorMessage;
   cytoscapeReady = false;
   isRefreshingInBackground = false;
-  loadingStatusMessage = LOADING_STATUS_MESSAGE;
+  loadingStatusMessage = DEFAULT_I18N.statusMessages.loading;
   generatedAtLabel;
 
   cy;
@@ -371,8 +873,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   isManualLoading = false;
   isSavingRelationship = false;
   isDeactivatingRelationship = false;
+  isDeletingRelationship = false;
   isAnalyzingWncImpact = false;
   isSmartBuilding = false;
+  smartBuildModeInFlight = SMART_BUILD_MODES.UPSERT;
   wncImpactSummary;
   wncImpactOverallAssessment;
   wncImpactRootAccount;
@@ -383,22 +887,209 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   wncImpactRecommendedActions = [];
   wncImpactGeneratedAtLabel;
   isWncImpactFromCache = false;
+  focusCompanyName;
+  focusCompanyDomain;
+  aiSupplyScenarioSet = new Set([...DEFAULT_AI_SUPPLY_SCENARIO_SET]);
   manualManagerExpanded = false;
   wncImpactExpanded = false;
   isGraphFullscreen = false;
   isUsingNativeFullscreen = false;
+  nativeFullscreenAccessBlocked = false;
   pendingViewportRefit = false;
   laneExpandModeEnabled = false;
 
   connectedCallback() {
     this.restoreUserPreferences();
+    this.relationshipForm = {
+      ...this.relationshipForm,
+      supplyScenario: this.isManualSupplyScenario(this.selectedSupplyScenario)
+        ? this.selectedSupplyScenario
+        : null
+    };
+    this.initializeViewportListeners();
+    this.initializeRuntimeAndData();
+  }
+
+  get i18n() {
+    return DEFAULT_I18N;
+  }
+
+  localizeSupplyScenarioLabel(scenarioCode, fallbackLabel) {
+    return (
+      this.i18n.supplyScenarioLabels?.[scenarioCode] ||
+      fallbackLabel ||
+      (typeof scenarioCode === "string" && scenarioCode
+        ? scenarioCode.replace(/_/g, " ")
+        : "")
+    );
+  }
+
+  getRelationshipModeLabel(mode) {
+    return this.i18n.relationshipModeLabels?.[mode] || mode;
+  }
+
+  getSourceTypeLabel(sourceType) {
+    return this.i18n.sourceTypeLabels?.[sourceType] || sourceType || "";
+  }
+
+  getPathTypeLabel(pathType) {
+    return pathType === "INDIRECT"
+      ? this.i18n.pathTypeLabels.INDIRECT
+      : this.i18n.pathTypeLabels.DIRECT;
+  }
+
+  formatTruncationNote(count) {
+    return this.i18n === I18N.zh
+      ? `目前顯示前 ${count} 個節點（為維持效能已截斷）。`
+      : `Showing first ${count} nodes (capped for performance).`;
+  }
+
+  formatManualManagerSubtitle(selectedSupplyScenarioLabel) {
+    return this.i18n === I18N.zh
+      ? `目前檢視場景：${selectedSupplyScenarioLabel}。在此維護 Root Account 的上下游與競爭關係。`
+      : `Current scenario: ${selectedSupplyScenarioLabel}. Manage upstream, downstream, and competitor relationships for the root account here.`;
+  }
+
+  formatImpactAnalysisCompletedMessage(focusName) {
+    return this.i18n === I18N.zh
+      ? `已完成供應鏈${focusName ? `對 ${focusName}` : ""}的影響分析。`
+      : `Supply chain impact analysis${focusName ? ` for ${focusName}` : ""} completed.`;
+  }
+
+  formatSmartBuildCompletedMessage({
+    modeLabel,
+    insertedCount,
+    updatedCount,
+    skippedCount,
+    deactivatedCount
+  }) {
+    if (this.i18n === I18N.zh) {
+      const modeMessage =
+        this.smartBuildModeInFlight === SMART_BUILD_MODES.FULL_REBUILD
+          ? `模式：${modeLabel}，已停用 ${deactivatedCount} 筆既有直連關係。`
+          : `模式：${modeLabel}。`;
+      return `${modeMessage} 已建立 ${insertedCount} 筆，更新 ${updatedCount} 筆，略過 ${skippedCount} 筆。`;
+    }
+
+    const modeMessage =
+      this.smartBuildModeInFlight === SMART_BUILD_MODES.FULL_REBUILD
+        ? `Mode: ${modeLabel}. Deactivated ${deactivatedCount} existing direct relationships.`
+        : `Mode: ${modeLabel}.`;
+    return `${modeMessage} Created ${insertedCount}, updated ${updatedCount}, skipped ${skippedCount}.`;
+  }
+
+  async initializeRuntimeAndData() {
+    await this.loadRuntimeConfig();
     this.restoreCachedGraph();
     this.restoreCachedWncImpact();
-    this.initializeViewportListeners();
-    this.loadGraphData();
+    await this.loadGraphData();
     if (this.manualManagerExpanded) {
-      this.loadManualRelationships();
+      await this.loadManualRelationships();
     }
+  }
+
+  async loadRuntimeConfig() {
+    try {
+      const runtimeConfig = await getRuntimeConfig();
+      const previousScenario = this.selectedSupplyScenario;
+      this.applyRuntimeConfig(runtimeConfig);
+
+      const normalizedScenario = this.normalizeSelectedSupplyScenario(
+        previousScenario
+      );
+      const scenarioChanged = normalizedScenario !== previousScenario;
+      this.selectedSupplyScenario = normalizedScenario;
+      this.relationshipForm = {
+        ...this.relationshipForm,
+        supplyScenario: this.normalizeManualSupplyScenario(
+          this.relationshipForm.supplyScenario
+        )
+      };
+      if (!this.relationshipForm.supplyScenario) {
+        this.relationshipForm = {
+          ...this.relationshipForm,
+          supplyScenario: this.isManualSupplyScenario(normalizedScenario)
+            ? normalizedScenario
+            : null
+        };
+      }
+
+      if (scenarioChanged) {
+        this.persistUserPreferences();
+      }
+    } catch (error) {
+      this.showToast(
+        this.i18n.toasts.scenarioConfigLoadFailed,
+        this.formatError(error),
+        "warning"
+      );
+    }
+  }
+
+  applyRuntimeConfig(runtimeConfig) {
+    const {
+      manualOptions,
+      allOptions,
+      aiScenarioSet
+    } = this.normalizeRuntimeScenarioOptions(runtimeConfig?.supplyScenarios);
+    this.runtimeManualSupplyScenarioOptions = manualOptions;
+    this.runtimeSupplyScenarioOptions = allOptions;
+    this.aiSupplyScenarioSet = aiScenarioSet;
+    this.focusCompanyName =
+      typeof runtimeConfig?.focusCompanyName === "string"
+        ? runtimeConfig.focusCompanyName.trim()
+        : null;
+    this.focusCompanyDomain =
+      typeof runtimeConfig?.focusCompanyDomain === "string"
+        ? runtimeConfig.focusCompanyDomain.trim()
+        : null;
+  }
+
+  normalizeRuntimeScenarioOptions(rawOptions) {
+    const manualOptions = [];
+    const aiScenarioSet = new Set();
+    const addedCodes = new Set();
+    const scenarioRows = Array.isArray(rawOptions) ? rawOptions : [];
+    scenarioRows.forEach((row) => {
+      const normalizedCode =
+        typeof row?.code === "string" ? row.code.trim().toUpperCase() : "";
+      if (!normalizedCode || addedCodes.has(normalizedCode)) {
+        return;
+      }
+      addedCodes.add(normalizedCode);
+      const rawLabel =
+        typeof row?.label === "string" && row.label.trim()
+          ? row.label.trim()
+          : normalizedCode.replace(/_/g, " ");
+      const label = this.localizeSupplyScenarioLabel(normalizedCode, rawLabel);
+      manualOptions.push({
+        label,
+        value: normalizedCode
+      });
+      if (row?.aiSupported === true) {
+        aiScenarioSet.add(normalizedCode);
+      }
+    });
+
+    if (!manualOptions.length) {
+      return {
+        manualOptions: buildManualSupplyScenarioOptions(this.i18n),
+        allOptions: buildSupplyScenarioOptions(this.i18n),
+        aiScenarioSet: new Set([...DEFAULT_AI_SUPPLY_SCENARIO_SET])
+      };
+    }
+
+    return {
+      manualOptions,
+      allOptions: [
+        {
+          label: this.localizeSupplyScenarioLabel(ALL_SUPPLY_SCENARIOS),
+          value: ALL_SUPPLY_SCENARIOS
+        },
+        ...manualOptions
+      ],
+      aiScenarioSet
+    };
   }
 
   renderedCallback() {
@@ -437,7 +1128,14 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return this.loadGraphData();
   }
 
-  handleRefreshClick() {
+  async handleRefreshClick() {
+    if (this.isBusy || !this.recordId) {
+      return;
+    }
+
+    this.manualPositionsByNodeId = {};
+    this.hideNodeTooltip();
+    await this.loadGraphData();
     this.relayoutCurrentGraph();
   }
 
@@ -498,7 +1196,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.loadManualRelationships();
     }
 
-    window.setTimeout(() => {
+    // Defers scroll until the manual panel is rendered and expanded.
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
+    window.requestAnimationFrame(() => {
       const manualPanelElement = this.template.querySelector(".manual-panel");
       if (manualPanelElement) {
         manualPanelElement.scrollIntoView({
@@ -517,6 +1217,15 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   async handleToggleGraphFullscreen() {
     const graphShell = this.getGraphShellElement();
     if (!graphShell) {
+      return;
+    }
+
+    if (this.nativeFullscreenAccessBlocked) {
+      this.isUsingNativeFullscreen = false;
+      this.isGraphFullscreen = !this.isGraphFullscreen;
+      this.setBodyScrollLock(this.isGraphFullscreen);
+      this.hideNodeTooltip();
+      this.requestViewportRefit();
       return;
     }
 
@@ -547,19 +1256,22 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   async handleAnalyzeWncImpact() {
-    if (!this.recordId) {
+    if (!this.recordId || !this.hasSelectedAiScenario) {
       return;
     }
 
     this.isAnalyzingWncImpact = true;
     try {
-      const response = await analyzeWncImpact({ rootAccountId: this.recordId });
+      const response = await analyzeWncImpact({
+        rootAccountId: this.recordId,
+        supplyScenario: this.selectedAiSupplyScenario
+      });
       const summary =
         response?.summary ||
         response?.summaryForUi ||
         response?.overallAssessment;
       if (!summary) {
-        throw new Error("分析已完成，但沒有可顯示的摘要。");
+        throw new Error(this.i18n.messages.summaryMissing);
       }
 
       const impactPayload = {
@@ -575,30 +1287,58 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       };
       this.applyWncImpactPayload(impactPayload, false);
       this.persistCachedWncImpact(impactPayload);
-      this.showToast("分析完成", "已完成供應鏈對 WNC 的影響分析。", "success");
+      const focusName = impactPayload.focusCompany || this.focusCompanyName;
+      this.showToast(
+        this.i18n.toasts.analysisCompletedTitle,
+        this.formatImpactAnalysisCompletedMessage(focusName),
+        "success"
+      );
     } catch (error) {
-      this.showToast("分析失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.analysisFailedTitle,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isAnalyzingWncImpact = false;
     }
   }
 
-  async handleSmartBuild() {
-    if (!this.recordId) {
+  handleSmartBuildUpsert() {
+    return this.handleSmartBuild(SMART_BUILD_MODES.UPSERT);
+  }
+
+  handleSmartBuildFullRebuild() {
+    return this.handleSmartBuild(SMART_BUILD_MODES.FULL_REBUILD);
+  }
+
+  normalizeSmartBuildMode(mode) {
+    return mode === SMART_BUILD_MODES.FULL_REBUILD
+      ? SMART_BUILD_MODES.FULL_REBUILD
+      : SMART_BUILD_MODES.UPSERT;
+  }
+
+  async handleSmartBuild(mode = SMART_BUILD_MODES.UPSERT) {
+    if (!this.recordId || !this.hasSelectedAiScenario) {
       return;
     }
 
+    const normalizedMode = this.normalizeSmartBuildMode(mode);
+    this.smartBuildModeInFlight = normalizedMode;
     this.isSmartBuilding = true;
     try {
       const response = await smartBuildRelationships({
         rootAccountId: this.recordId,
-        maxNodes: this.effectiveMaxNodes
+        maxNodes: this.effectiveMaxNodes,
+        buildMode: normalizedMode,
+        supplyScenario: this.selectedAiSupplyScenario
       });
 
       const graphResponse = response?.graph;
       if (graphResponse) {
         this.graphResponse = graphResponse;
         this.persistCachedGraph(graphResponse);
+        this.persistDebugJsonSnapshot(graphResponse);
         this.generatedAtLabel = this.formatDateTime(graphResponse.generatedAt);
         this.errorMessage = undefined;
         this.renderGraph();
@@ -611,15 +1351,28 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       const insertedCount = Number(response?.insertedCount || 0);
       const updatedCount = Number(response?.updatedCount || 0);
       const skippedCount = Number(response?.skippedCount || 0);
+      const deactivatedCount = Number(response?.deactivatedCount || 0);
+      const modeLabel = this.i18n.smartBuildModeLabels[normalizedMode] || normalizedMode;
       this.showToast(
-        "智能建立完成",
-        `已建立 ${insertedCount} 筆，更新 ${updatedCount} 筆，略過 ${skippedCount} 筆。`,
+        this.i18n.toasts.smartBuildCompletedTitle,
+        this.formatSmartBuildCompletedMessage({
+          modeLabel,
+          insertedCount,
+          updatedCount,
+          skippedCount,
+          deactivatedCount
+        }),
         "success"
       );
     } catch (error) {
-      this.showToast("智能建立失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.smartBuildFailedTitle,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isSmartBuilding = false;
+      this.smartBuildModeInFlight = SMART_BUILD_MODES.UPSERT;
     }
   }
 
@@ -688,13 +1441,18 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       const rows = await getManualRelationships({
         rootAccountId: this.recordId,
         limitRows: MANUAL_RELATIONSHIP_LIMIT,
-        maxNodes: this.effectiveMaxNodes
+        maxNodes: this.effectiveMaxNodes,
+        supplyScenario: this.querySupplyScenario
       });
       this.manualRelationships = (rows || []).map((row) =>
         this.decorateManualRelationship(row)
       );
     } catch (error) {
-      this.showToast("關係清單載入失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.manualListLoadFailed,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isManualLoading = false;
     }
@@ -705,16 +1463,22 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return {
       ...row,
       mode: normalizedMode,
-      modeLabel: RELATIONSHIP_MODE_LABELS[normalizedMode] || normalizedMode,
-      sourceTypeLabel: row?.sourceType || "PUBLIC_INFO",
-      statusLabel: row?.isActive ? "Active" : "Inactive",
+      modeLabel: this.getRelationshipModeLabel(normalizedMode),
+      sourceTypeLabel: this.getSourceTypeLabel(row?.sourceType || "PUBLIC_INFO"),
+      statusLabel: row?.isActive
+        ? this.i18n.relationshipStatusLabels.active
+        : this.i18n.relationshipStatusLabels.inactive,
       badgeClass: row?.isActive
         ? "status-badge is-active"
         : "status-badge is-inactive",
       updatedLabel: this.formatDateTime(row?.lastModifiedDate),
-      relatedAccountName: row?.relatedAccountName || "(Unknown Account)",
-      pathTypeLabel:
-        row?.pathTypeLabel || (row?.pathType === "INDIRECT" ? "間接" : "直接")
+      supplyScenarioLabel: this.getSupplyScenarioLabel(
+        row?.supplyScenario,
+        row?.supplyScenarioLabel
+      ),
+      relatedAccountName:
+        row?.relatedAccountName || this.i18n.messages.unknownAccountLabel,
+      pathTypeLabel: this.getPathTypeLabel(row?.pathType)
     };
   }
 
@@ -769,6 +1533,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         value === "" || value === null || value === undefined
           ? null
           : Number(value);
+    } else if (fieldName === "supplyScenario") {
+      value = this.normalizeManualSupplyScenario(value);
     }
     this.relationshipForm = {
       ...this.relationshipForm,
@@ -778,7 +1544,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
   handleResetRelationshipForm() {
     this.relationshipForm = {
-      ...EMPTY_RELATIONSHIP_FORM
+      ...EMPTY_RELATIONSHIP_FORM,
+      supplyScenario: this.isManualSupplyScenario(this.selectedSupplyScenario)
+        ? this.selectedSupplyScenario
+        : null
     };
   }
 
@@ -788,14 +1557,26 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     }
     if (!this.relationshipForm.relatedAccountId) {
       this.showToast(
-        "請選擇 Account",
-        "建立關係前請先選擇對象 Account。",
+        this.i18n.validation.selectAccountTitle,
+        this.i18n.validation.selectAccountMessage,
+        "error"
+      );
+      return;
+    }
+    if (!this.relationshipForm.supplyScenario) {
+      this.showToast(
+        this.i18n.validation.selectScenarioTitle,
+        this.i18n.validation.selectScenarioMessage,
         "error"
       );
       return;
     }
     if (this.relationshipForm.relatedAccountId === this.recordId) {
-      this.showToast("資料錯誤", "無法建立自己到自己的關係。", "error");
+      this.showToast(
+        this.i18n.validation.invalidDataTitle,
+        this.i18n.validation.selfRelationshipMessage,
+        "error"
+      );
       return;
     }
 
@@ -810,14 +1591,23 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         products: this.relationshipForm.products,
         evidence: this.relationshipForm.evidence,
         confidence: this.relationshipForm.confidence,
-        sourceType: this.relationshipForm.sourceType
+        sourceType: this.relationshipForm.sourceType,
+        supplyScenario: this.relationshipForm.supplyScenario
       });
 
-      this.showToast("建立成功", "已建立手動供應鏈關係。", "success");
+      this.showToast(
+        this.i18n.toasts.createSuccessTitle,
+        this.i18n.toasts.createSuccessMessage,
+        "success"
+      );
       this.handleResetRelationshipForm();
       await Promise.all([this.loadGraphData(), this.loadManualRelationships()]);
     } catch (error) {
-      this.showToast("建立失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.createFailedTitle,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isSavingRelationship = false;
     }
@@ -843,12 +1633,20 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         rootAccountId: this.recordId
       });
 
-      this.showToast("已停用", "關係已停用，不會再顯示在圖上。", "success");
+      this.showToast(
+        this.i18n.toasts.deactivateSuccessTitle,
+        this.i18n.toasts.deactivateSuccessMessage,
+        "success"
+      );
       this.loadGraphData();
       this.loadManualRelationships();
     } catch (error) {
       this.updateManualRelationshipLocalStatus(relationshipId, originalStatus);
-      this.showToast("停用失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.deactivateFailedTitle,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isDeactivatingRelationship = false;
     }
@@ -874,14 +1672,57 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         rootAccountId: this.recordId
       });
 
-      this.showToast("已啟用", "關係已重新啟用並回到圖上。", "success");
+      this.showToast(
+        this.i18n.toasts.activateSuccessTitle,
+        this.i18n.toasts.activateSuccessMessage,
+        "success"
+      );
       this.loadGraphData();
       this.loadManualRelationships();
     } catch (error) {
       this.updateManualRelationshipLocalStatus(relationshipId, originalStatus);
-      this.showToast("啟用失敗", this.formatError(error), "error");
+      this.showToast(
+        this.i18n.toasts.activateFailedTitle,
+        this.formatError(error),
+        "error"
+      );
     } finally {
       this.isDeactivatingRelationship = false;
+    }
+  }
+
+  async handleDeleteRelationship(event) {
+    const relationshipId = event.currentTarget?.dataset?.relationshipId;
+    if (!relationshipId || !this.recordId) {
+      return;
+    }
+
+    const targetRow = this.getManualRelationshipById(relationshipId);
+    if (!targetRow || targetRow.isActive) {
+      return;
+    }
+
+    this.isDeletingRelationship = true;
+    try {
+      await deleteManualRelationship({
+        relationshipId,
+        rootAccountId: this.recordId
+      });
+
+      this.showToast(
+        this.i18n.toasts.deleteSuccessTitle,
+        this.i18n.toasts.deleteSuccessMessage,
+        "success"
+      );
+      await Promise.all([this.loadGraphData(), this.loadManualRelationships()]);
+    } catch (error) {
+      this.showToast(
+        this.i18n.toasts.deleteFailedTitle,
+        this.formatError(error),
+        "error"
+      );
+    } finally {
+      this.isDeletingRelationship = false;
     }
   }
 
@@ -902,15 +1743,16 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     this.isLoading = !hasCachedGraph;
     this.isRefreshingInBackground = hasCachedGraph;
     this.loadingStatusMessage = hasCachedGraph
-      ? BACKGROUND_REFRESHING_STATUS_MESSAGE
-      : LOADING_STATUS_MESSAGE;
+      ? this.i18n.statusMessages.backgroundRefreshing
+      : this.i18n.statusMessages.loading;
     this.errorMessage = undefined;
     const requestId = ++this.requestSequence;
 
     try {
       const response = await getGraph({
         rootAccountId: this.recordId,
-        maxNodes: this.effectiveMaxNodes
+        maxNodes: this.effectiveMaxNodes,
+        supplyScenario: this.querySupplyScenario
       });
 
       if (requestId !== this.requestSequence) {
@@ -925,6 +1767,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         truncated: false
       };
       this.persistCachedGraph(this.graphResponse);
+      this.persistDebugJsonSnapshot(this.graphResponse);
       this.generatedAtLabel = this.formatDateTime(
         this.graphResponse.generatedAt
       );
@@ -940,7 +1783,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         this.graphResponse = undefined;
         this.clearGraph();
       } else {
-        this.errorMessage = `更新失敗，顯示上次結果。${this.errorMessage}`;
+        this.errorMessage =
+          this.i18n === I18N.zh
+            ? `更新失敗，顯示上次結果。${this.errorMessage}`
+            : `Refresh failed. Showing the previous result. ${this.errorMessage}`;
       }
     } finally {
       if (requestId === this.requestSequence) {
@@ -954,6 +1800,39 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     this.selectedFilter = this.normalizeFilterValue(event.detail.value);
     this.persistUserPreferences();
     this.renderGraph();
+  }
+
+  async handleSupplyScenarioChange(event) {
+    const nextScenario = this.normalizeSelectedSupplyScenario(
+      event.detail?.value
+    );
+    if (nextScenario === this.selectedSupplyScenario) {
+      return;
+    }
+
+    const previousScenario = this.selectedSupplyScenario;
+    this.selectedSupplyScenario = nextScenario;
+    if (
+      this.isManualSupplyScenario(nextScenario) &&
+      (!this.relationshipForm.supplyScenario ||
+        this.relationshipForm.supplyScenario === previousScenario)
+    ) {
+      this.relationshipForm = {
+        ...this.relationshipForm,
+        supplyScenario: nextScenario
+      };
+    }
+
+    this.persistUserPreferences();
+    this.manualPositionsByNodeId = {};
+    this.hideNodeTooltip();
+    this.restoreCachedGraph({ clearWhenMissing: true });
+    this.restoreCachedWncImpact({ clearWhenMissing: true });
+
+    await this.loadGraphData();
+    if (this.manualManagerExpanded) {
+      await this.loadManualRelationships();
+    }
   }
 
   renderGraph() {
@@ -979,17 +1858,32 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.graphHorizontalSpacing,
       this.graphVerticalSpacing
     );
+    const focusNodeContext = {
+      focusCompanyName: this.focusCompanyName,
+      impactFocusCompanyName: this.wncImpactFocusCompany,
+      focusCompanyAlias: this.resolveFocusCompanyAlias(this.focusCompanyName),
+      focusCompanyDomain: this.focusCompanyDomain
+    };
     const positionsByNode = this.mergeManualPositions(
       nodes,
       computedPositionsByNode
     );
     const filteredElements = this.isStoryMode
-      ? buildStoryElements(nodes, edges, this.selectedFilter, positionsByNode)
+      ? buildStoryElements(
+          nodes,
+          edges,
+          this.selectedFilter,
+          positionsByNode,
+          focusNodeContext,
+          this.i18n.graphContent
+        )
       : buildFilteredElements(
           nodes,
           edges,
           this.selectedFilter,
-          positionsByNode
+          positionsByNode,
+          focusNodeContext,
+          this.i18n.graphContent
         );
     const laneResizeHandleElements = this.shouldRenderLaneResizeHandles
       ? this.buildLaneResizeHandleElements(filteredElements.nodes)
@@ -1263,7 +2157,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       return;
     }
 
-    const laneEventMode = this.laneExpandModeEnabled ? "no" : "yes";
+    const laneEventMode = "yes";
     const edgeOverlayPadding = this.laneExpandModeEnabled
       ? EDGE_HOVER_OVERLAY_PADDING_EXPANDED
       : 0;
@@ -1363,8 +2257,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     this.tooltipCurrentEdgeId = undefined;
     this.updateTooltipText({
       title: targetNode.data("label") || "",
-      metaLabel: "Role",
-      metaValue: targetNode.data("roleLabel") || "未分類",
+      metaLabel: this.i18n.tooltips.role,
+      metaValue:
+        targetNode.data("roleLabel") || this.i18n.tooltips.uncategorizedRole,
       note: targetNode.data("noteText") || ""
     });
     tooltipElement.classList.add("is-visible");
@@ -1388,10 +2283,15 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     const sourceNode = targetEdge.source();
     const targetNode = targetEdge.target();
     const sourceLabel =
-      sourceNode?.data("label") || targetEdge.data("source") || "Source";
+      sourceNode?.data("label") ||
+      targetEdge.data("source") ||
+      this.i18n.tooltips.sourceFallback;
     const targetLabel =
-      targetNode?.data("label") || targetEdge.data("target") || "Target";
-    const relationType = targetEdge.data("relationType") || "Related";
+      targetNode?.data("label") ||
+      targetEdge.data("target") ||
+      this.i18n.tooltips.targetFallback;
+    const relationType =
+      targetEdge.data("relationType") || this.i18n.tooltips.relationFallback;
     const edgeCategory = targetEdge.data("edgeCategory") || "";
     const marketRiskNote = targetEdge.data("marketRiskNote") || "";
     const direction = this.getEdgeDirectionLabel(
@@ -1399,16 +2299,20 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       relationType,
       edgeCategory
     );
-    const noteSegments = [`方向：${direction}`];
+    const noteSegments = [
+      `${this.i18n.tooltips.directionPrefix}: ${direction}`
+    ];
     if (marketRiskNote) {
-      noteSegments.push(`市場風險：${marketRiskNote}`);
+      noteSegments.push(
+        `${this.i18n.tooltips.marketRiskPrefix}: ${marketRiskNote}`
+      );
     }
 
     this.tooltipCurrentNodeId = undefined;
     this.tooltipCurrentEdgeId = targetEdge.id();
     this.updateTooltipText({
       title: `${sourceLabel} -> ${targetLabel}`,
-      metaLabel: "Relation",
+      metaLabel: this.i18n.tooltips.relation,
       metaValue: relationType,
       note: noteSegments.join(" | ")
     });
@@ -1450,7 +2354,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       titleElement.textContent = tooltipPayload?.title || "";
     }
     if (metaLabelElement) {
-      metaLabelElement.textContent = tooltipPayload?.metaLabel || "Role";
+      metaLabelElement.textContent =
+        tooltipPayload?.metaLabel || this.i18n.tooltips.role;
     }
     if (roleElement) {
       roleElement.textContent = tooltipPayload?.metaValue || "";
@@ -1463,35 +2368,35 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   getEdgeDirectionLabel(direction, relationType, edgeCategory) {
     const normalizedCategory = String(edgeCategory || "").toUpperCase();
     if (normalizedCategory === "INDIRECT_PATH") {
-      return "間接供應鏈路徑";
+      return this.i18n.edgeDirectionLabels.INDIRECT_PATH;
     }
     if (normalizedCategory === "UPSTREAM") {
-      return "上游供應";
+      return this.i18n.edgeDirectionLabels.UPSTREAM;
     }
     if (normalizedCategory === "DOWNSTREAM") {
-      return "下游客戶";
+      return this.i18n.edgeDirectionLabels.DOWNSTREAM;
     }
     if (normalizedCategory === "COMPETITOR") {
-      return "同業競爭";
+      return this.i18n.edgeDirectionLabels.COMPETITOR;
     }
 
     const normalizedDirection = String(direction || "").toUpperCase();
     if (normalizedDirection === "UPSTREAM") {
-      return "上游供應";
+      return this.i18n.edgeDirectionLabels.UPSTREAM;
     }
     if (normalizedDirection === "DOWNSTREAM") {
-      return "下游客戶";
+      return this.i18n.edgeDirectionLabels.DOWNSTREAM;
     }
     if (normalizedDirection === "COMPETITOR") {
-      return "同業競爭";
+      return this.i18n.edgeDirectionLabels.COMPETITOR;
     }
     if (normalizedDirection === "INDIRECT_PATH") {
-      return "間接供應鏈路徑";
+      return this.i18n.edgeDirectionLabels.INDIRECT_PATH;
     }
 
     const normalizedRelationType = String(relationType || "").toLowerCase();
     if (normalizedRelationType.includes("competitor")) {
-      return "同業競爭";
+      return this.i18n.edgeDirectionLabels.COMPETITOR;
     }
     if (
       normalizedRelationType.includes("supplier") ||
@@ -1499,7 +2404,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       normalizedRelationType.includes("manufacturer") ||
       normalizedRelationType.includes("osat")
     ) {
-      return "上游供應";
+      return this.i18n.edgeDirectionLabels.UPSTREAM;
     }
     if (
       normalizedRelationType.includes("customer") ||
@@ -1507,9 +2412,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       normalizedRelationType.includes("oem") ||
       normalizedRelationType.includes("channel")
     ) {
-      return "下游客戶";
+      return this.i18n.edgeDirectionLabels.DOWNSTREAM;
     }
-    return "關聯";
+    return this.i18n.edgeDirectionLabels.DEFAULT;
   }
 
   positionTooltip(event) {
@@ -1583,7 +2488,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     if (typeof error?.message === "string") {
       return error.message;
     }
-    return "無法載入上下游關係圖。";
+    return this.i18n.messages.genericError;
   }
 
   restoreCachedGraph(options = {}) {
@@ -1641,19 +2546,64 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     }
   }
 
-  restoreCachedWncImpact() {
-    if (!this.recordId) {
+  persistDebugJsonSnapshot(graphResponse) {
+    if (!this.recordId || !graphResponse) {
       return;
     }
 
     try {
+      const drawGraphJson = JSON.parse(JSON.stringify(graphResponse));
+      const promptRawJsonString =
+        typeof drawGraphJson.promptRawJson === "string"
+          ? drawGraphJson.promptRawJson
+          : null;
+      delete drawGraphJson.promptRawJson;
+
+      let promptRawJson = null;
+      if (promptRawJsonString && promptRawJsonString.trim()) {
+        try {
+          promptRawJson = JSON.parse(promptRawJsonString);
+        } catch {
+          promptRawJson = promptRawJsonString;
+        }
+      }
+
+      const debugSnapshot = {
+        savedAt: Date.now(),
+        recordId: this.recordId,
+        promptRawJson,
+        drawGraphJson
+      };
+
+      window.localStorage.setItem(
+        this.graphDebugCacheKey,
+        JSON.stringify(debugSnapshot)
+      );
+    } catch {
+      // Debug snapshot persistence is non-blocking.
+    }
+  }
+
+  restoreCachedWncImpact(options = {}) {
+    if (!this.recordId) {
+      return;
+    }
+    const clearWhenMissing = options?.clearWhenMissing === true;
+
+    try {
       const rawCache = window.localStorage.getItem(this.wncImpactCacheKey);
       if (!rawCache) {
+        if (clearWhenMissing) {
+          this.clearWncImpactPayload();
+        }
         return;
       }
 
       const cachedPayload = JSON.parse(rawCache);
       if (!cachedPayload || typeof cachedPayload !== "object") {
+        if (clearWhenMissing) {
+          this.clearWncImpactPayload();
+        }
         return;
       }
 
@@ -1663,12 +2613,18 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
         Date.now() - savedAt > WNC_IMPACT_CACHE_TTL_MS
       ) {
         window.localStorage.removeItem(this.wncImpactCacheKey);
+        if (clearWhenMissing) {
+          this.clearWncImpactPayload();
+        }
         return;
       }
 
       this.applyWncImpactPayload(cachedPayload.payload, true);
     } catch {
       // Cache read failure should not block component rendering.
+      if (clearWhenMissing) {
+        this.clearWncImpactPayload();
+      }
     }
   }
 
@@ -1688,6 +2644,19 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     } catch {
       // Cache write failure is non-blocking.
     }
+  }
+
+  clearWncImpactPayload() {
+    this.wncImpactSummary = null;
+    this.wncImpactOverallAssessment = null;
+    this.wncImpactRootAccount = null;
+    this.wncImpactFocusCompany = null;
+    this.wncImpactLevel = null;
+    this.wncImpactKeyRisks = [];
+    this.wncImpactPositiveSignals = [];
+    this.wncImpactRecommendedActions = [];
+    this.wncImpactGeneratedAtLabel = null;
+    this.isWncImpactFromCache = false;
   }
 
   formatDateTime(rawValue) {
@@ -1725,7 +2694,33 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get filterOptions() {
-    return FILTER_OPTIONS;
+    return this.i18n.filterOptions;
+  }
+
+  get supplyScenarioOptions() {
+    return this.runtimeSupplyScenarioOptions;
+  }
+
+  get manualSupplyScenarioOptions() {
+    return this.runtimeManualSupplyScenarioOptions;
+  }
+
+  get selectedSupplyScenarioLabel() {
+    return this.getSupplyScenarioLabel(this.selectedSupplyScenario);
+  }
+
+  get querySupplyScenario() {
+    return this.selectedSupplyScenario === ALL_SUPPLY_SCENARIOS
+      ? null
+      : this.selectedSupplyScenario;
+  }
+
+  get selectedAiSupplyScenario() {
+    return this.hasSelectedAiScenario ? this.selectedSupplyScenario : null;
+  }
+
+  get hasSelectedAiScenario() {
+    return this.aiSupplyScenarioSet.has(this.selectedSupplyScenario);
   }
 
   get coverageNote() {
@@ -1733,11 +2728,15 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get graphCacheKey() {
-    return `${CACHE_KEY_PREFIX}:${this.recordId}:${this.normalizedDisplayMode}`;
+    return `${CACHE_KEY_PREFIX}:${this.recordId}:${this.normalizedDisplayMode}:${this.selectedSupplyScenario}`;
   }
 
   get wncImpactCacheKey() {
-    return `${CACHE_KEY_PREFIX}:${this.recordId}:wncImpact:v1`;
+    return `${CACHE_KEY_PREFIX}:${this.recordId}:wncImpact:v3:${this.selectedSupplyScenario}:${this.focusCompanyDomain || "focus"}`;
+  }
+
+  get graphDebugCacheKey() {
+    return `${DEBUG_JSON_STORAGE_KEY_PREFIX}:${this.recordId}:${this.selectedSupplyScenario}`;
   }
 
   get isStoryMode() {
@@ -1776,8 +2775,12 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return this.graphResponse?.nodeCount || 0;
   }
 
+  get truncationNote() {
+    return this.formatTruncationNote(this.nodeCount);
+  }
+
   get refreshGraphButtonTooltip() {
-    return "重新整理目前關係圖版面並置中。";
+    return this.i18n.messages.refreshGraphTooltip;
   }
 
   get showLaneExpandControl() {
@@ -1785,7 +2788,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get laneExpandButtonTooltip() {
-    return this.laneExpandModeEnabled ? "收合灰匡公司佈局" : "展開灰匡公司佈局";
+    return this.laneExpandModeEnabled
+      ? this.i18n.actions.collapseLaneLayout
+      : this.i18n.actions.expandLaneLayout;
   }
 
   get laneExpandButtonIconName() {
@@ -1800,21 +2805,54 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
   get analyzeWncImpactButtonTooltip() {
     if (this.showWncImpactAnalysis || this.isWncImpactFromCache) {
-      return "目前顯示上次分析結果。按供應鏈分析可重新分析。";
+      return this.i18n.messages.cachedImpactTooltip;
     }
-    return "執行供應鏈對 WNC 的影響分析。";
+    return this.i18n.messages.analyzeImpactTooltip;
+  }
+
+  get impactAnalysisTitle() {
+    const focusName = this.wncImpactFocusCompany || this.focusCompanyName;
+    return focusName
+      ? `${focusName}${this.i18n.messages.impactAnalysisTitleSuffix}`
+      : this.i18n.messages.impactAnalysisTitleDefault;
+  }
+
+  get impactAnalysisHeading() {
+    return this.i18n === I18N.zh
+      ? `${this.impactAnalysisTitle}（${this.wncImpactLevelLabel}）`
+      : `${this.impactAnalysisTitle} (${this.wncImpactLevelLabel})`;
+  }
+
+  get wncImpactGeneratedAtText() {
+    return this.wncImpactGeneratedAtLabel
+      ? `${this.i18n.messages.wncAnalysisUpdatedPrefix}${this.wncImpactGeneratedAtLabel}`
+      : "";
+  }
+
+  get graphUpdatedText() {
+    return this.generatedAtLabel
+      ? `${this.i18n.messages.lastUpdatedPrefix}${this.generatedAtLabel}`
+      : "";
   }
 
   get showManualRelationshipManager() {
     return this.manualManagerExpanded;
   }
 
+  get manualManagerSubtitle() {
+    return this.formatManualManagerSubtitle(this.selectedSupplyScenarioLabel);
+  }
+
   get manualManagerActionLabel() {
-    return this.manualManagerExpanded ? "Hide Manager" : "Show Manager";
+    return this.manualManagerExpanded
+      ? this.i18n.actions.collapseAnalysis
+      : this.i18n.actions.expandAnalysis;
   }
 
   get graphFullscreenActionLabel() {
-    return this.isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen";
+    return this.isGraphFullscreen
+      ? this.i18n.actions.toggleFullscreen
+      : this.i18n.actions.toggleFullscreen;
   }
 
   get graphShellClass() {
@@ -1858,12 +2896,16 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return this.isLoading && !this.hasData;
   }
 
+  get disableViewportZoomActions() {
+    return !this.cy || !this.hasData;
+  }
+
   get relationshipModeOptions() {
-    return RELATIONSHIP_MODE_OPTIONS;
+    return this.i18n.relationshipModeOptions;
   }
 
   get sourceTypeOptions() {
-    return SOURCE_TYPE_OPTIONS;
+    return this.i18n.sourceTypeOptions;
   }
 
   get relationshipFormMode() {
@@ -1876,6 +2918,10 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
 
   get relationshipFormRelationType() {
     return this.relationshipForm.relationType;
+  }
+
+  get relationshipFormSupplyScenario() {
+    return this.relationshipForm.supplyScenario;
   }
 
   get relationshipFormRole() {
@@ -1903,7 +2949,8 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.isSavingRelationship ||
       this.isLoading ||
       this.isRefreshingInBackground ||
-      !this.relationshipForm.relatedAccountId
+      !this.relationshipForm.relatedAccountId ||
+      !this.relationshipForm.supplyScenario
     );
   }
 
@@ -1911,6 +2958,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return (
       this.isSavingRelationship ||
       this.isDeactivatingRelationship ||
+      this.isDeletingRelationship ||
       this.isLoading ||
       this.isRefreshingInBackground
     );
@@ -1922,6 +2970,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.isSmartBuilding ||
       this.isLoading ||
       this.isRefreshingInBackground ||
+      !this.hasSelectedAiScenario ||
       !this.recordId
     );
   }
@@ -1931,6 +2980,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       this.isSmartBuilding ||
       this.isLoading ||
       this.isRefreshingInBackground ||
+      !this.hasSelectedAiScenario ||
       !this.recordId
     );
   }
@@ -1944,15 +2994,24 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get wncImpactStatusMessage() {
-    return WNC_IMPACT_LOADING_STATUS_MESSAGE;
+    return this.i18n.statusMessages.wncImpactLoading;
   }
 
   get smartBuildStatusMessage() {
-    return SMART_BUILD_LOADING_STATUS_MESSAGE;
+    return (
+      this.i18n.statusMessages.smartBuildLoadingByMode[
+        this.smartBuildModeInFlight
+      ] ||
+      this.i18n.statusMessages.smartBuildLoadingByMode[
+        SMART_BUILD_MODES.UPSERT
+      ]
+    );
   }
 
   get wncImpactToggleLabel() {
-    return this.wncImpactExpanded ? "收合分析" : "展開分析";
+    return this.wncImpactExpanded
+      ? this.i18n.actions.collapseAnalysis
+      : this.i18n.actions.expandAnalysis;
   }
 
   get showWncImpactAnalysis() {
@@ -2184,12 +3243,37 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     this.scheduleViewportSync({ refit: true });
   }
 
+  getZoomAnchorPosition() {
+    const graphContainer = this.template.querySelector('[data-id="graph"]');
+    if (!graphContainer) {
+      return null;
+    }
+
+    const width = Number(graphContainer.clientWidth);
+    const height = Number(graphContainer.clientHeight);
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      return null;
+    }
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return {
+      x: width / 2,
+      y: height / 2
+    };
+  }
+
   adjustGraphZoom(multiplier) {
     if (!this.cy || !Number.isFinite(multiplier) || multiplier <= 0) {
       return;
     }
 
-    const currentZoom = this.cy.zoom();
+    const currentZoom = Number(this.cy.zoom());
+    if (!Number.isFinite(currentZoom) || currentZoom <= 0) {
+      return;
+    }
+
     const minZoom = Number.isFinite(this.cy.minZoom())
       ? this.cy.minZoom()
       : 0.1;
@@ -2198,19 +3282,24 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       maxZoom,
       Math.max(minZoom, currentZoom * multiplier)
     );
+    if (!Number.isFinite(nextZoom)) {
+      return;
+    }
+    if (Math.abs(nextZoom - currentZoom) < 0.0001) {
+      return;
+    }
 
-    const graphContainer = this.template.querySelector('[data-id="graph"]');
-    const renderedPosition = graphContainer
-      ? {
-          x: graphContainer.clientWidth / 2,
-          y: graphContainer.clientHeight / 2
-        }
-      : undefined;
+    const renderedPosition = this.getZoomAnchorPosition();
 
-    this.cy.zoom({
-      level: nextZoom,
-      renderedPosition
-    });
+    if (renderedPosition) {
+      this.cy.zoom({
+        level: nextZoom,
+        renderedPosition
+      });
+      return;
+    }
+
+    this.cy.zoom(nextZoom);
   }
 
   syncViewport(shouldRefit = false) {
@@ -2281,7 +3370,7 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   get shouldRenderLaneResizeHandles() {
-    return this.isStoryMode && !this.laneExpandModeEnabled;
+    return this.isStoryMode;
   }
 
   getLaneResizeHandleId(laneId) {
@@ -2674,6 +3763,16 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
       if (
         Object.prototype.hasOwnProperty.call(
           preferences,
+          "selectedSupplyScenario"
+        )
+      ) {
+        this.selectedSupplyScenario = this.normalizeSelectedSupplyScenario(
+          preferences.selectedSupplyScenario
+        );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(
+          preferences,
           "manualManagerExpanded"
         )
       ) {
@@ -2697,6 +3796,9 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     try {
       const preferences = {
         selectedFilter: this.normalizeFilterValue(this.selectedFilter),
+        selectedSupplyScenario: this.normalizeSelectedSupplyScenario(
+          this.selectedSupplyScenario
+        ),
         manualManagerExpanded: this.manualManagerExpanded === true,
         wncImpactExpanded: this.wncImpactExpanded === true
       };
@@ -2719,10 +3821,37 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
   }
 
   normalizeFilterValue(rawValue) {
-    const isKnownFilter = FILTER_OPTIONS.some(
+    const isKnownFilter = Object.values(FILTER_VALUES).includes(rawValue);
+    return isKnownFilter ? rawValue : FILTER_VALUES.ALL;
+  }
+
+  normalizeSelectedSupplyScenario(rawValue) {
+    const isKnownScenario = this.runtimeSupplyScenarioOptions.some(
       (option) => option.value === rawValue
     );
-    return isKnownFilter ? rawValue : FILTER_VALUES.ALL;
+    return isKnownScenario ? rawValue : ALL_SUPPLY_SCENARIOS;
+  }
+
+  normalizeManualSupplyScenario(rawValue) {
+    const isKnownScenario = this.runtimeManualSupplyScenarioOptions.some(
+      (option) => option.value === rawValue
+    );
+    return isKnownScenario ? rawValue : null;
+  }
+
+  isManualSupplyScenario(rawValue) {
+    return this.normalizeManualSupplyScenario(rawValue) !== null;
+  }
+
+  getSupplyScenarioLabel(rawValue, fallbackLabel) {
+    const option = this.runtimeSupplyScenarioOptions.find(
+      (candidate) => candidate.value === rawValue
+    );
+    return (
+      option?.label ||
+      this.localizeSupplyScenarioLabel(rawValue, fallbackLabel) ||
+      this.localizeSupplyScenarioLabel(ALL_SUPPLY_SCENARIOS)
+    );
   }
 
   normalizeMode(rawValue) {
@@ -2747,6 +3876,47 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     return `${normalizedText.slice(0, maxLength).trimEnd()}…`;
   }
 
+  resolveFocusCompanyAlias(focusCompanyName) {
+    if (typeof focusCompanyName !== "string") {
+      return null;
+    }
+
+    const normalized = focusCompanyName.trim();
+    if (!normalized) {
+      return null;
+    }
+
+    if (this.isExplicitFocusCompanyAlias(normalized)) {
+      return normalized;
+    }
+
+    const tokens = normalized
+      .split(/[\s/|,;:()（）\-_.]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    if (!tokens.length) {
+      return null;
+    }
+
+    const leadingAliasToken = tokens[0];
+    return this.isExplicitFocusCompanyAlias(leadingAliasToken)
+      ? leadingAliasToken
+      : null;
+  }
+
+  isExplicitFocusCompanyAlias(rawToken) {
+    if (typeof rawToken !== "string") {
+      return false;
+    }
+
+    const normalizedToken = rawToken.trim();
+    if (!normalizedToken) {
+      return false;
+    }
+
+    return /^[A-Z0-9&]{2,8}$/.test(normalizedToken);
+  }
+
   setBodyScrollLock(isLocked) {
     if (typeof document === "undefined" || !document.body) {
       return;
@@ -2762,9 +3932,16 @@ export default class CmSupplyNetworkGraph extends NavigationMixin(
     if (typeof document === "undefined") {
       return null;
     }
-    return (
-      document.fullscreenElement || document.webkitFullscreenElement || null
-    );
+    try {
+      return (
+        document.fullscreenElement || document.webkitFullscreenElement || null
+      );
+    } catch {
+      // In some orgs, Lightning Web Security blocks direct fullscreenElement access.
+      // Returning null allows graceful fallback to CSS fullscreen mode.
+      this.nativeFullscreenAccessBlocked = true;
+      return null;
+    }
   }
 
   async enterNativeFullscreen(graphShell) {
