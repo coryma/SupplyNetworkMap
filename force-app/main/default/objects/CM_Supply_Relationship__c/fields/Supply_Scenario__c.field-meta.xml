@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Supply_Scenario__c</fullName>
+    <defaultValue>&apos;LEGACY_UNSCOPED&apos;</defaultValue>
+    <label>Supply Scenario</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>FWA_5G</fullName>
+                <default>false</default>
+                <label>5G FWA</label>
+            </value>
+            <value>
+                <fullName>ENTERPRISE_WIFI_AP</fullName>
+                <default>false</default>
+                <label>Enterprise Wi-Fi AP</label>
+            </value>
+            <value>
+                <fullName>AUTOMOTIVE_TELEMATICS</fullName>
+                <default>false</default>
+                <label>Automotive Telematics</label>
+            </value>
+            <value>
+                <fullName>LEGACY_UNSCOPED</fullName>
+                <default>true</default>
+                <label>Legacy / Unscoped</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

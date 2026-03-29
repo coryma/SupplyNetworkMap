@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier>Q01fQUNDT1VOVF9XTkNfSU1QQUNUX1NDRU5BUklPX1YxLTAwMDEyMzQ1Njc4OQ==_1</activeVersionIdentifier>
+    <developerName>CM_Account_WNC_Impact_Analysis_SCENARIO</developerName>
+    <masterLabel>CM - WNC 供應鏈影響分析 (Scenario)</masterLabel>
+    <templateVersions>
+        <content>你是「供應鏈風險與影響分析引擎」。
+
+目標：
+針對 Root Account 在指定供應鏈場景下的供應鏈 JSON 進行分析，評估該供應鏈對「啟碁科技 WNC」的潛在影響，並輸出可被 Apex 直接解析的嚴格 JSON。
+
+輸入資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_supply_network_json: {!$Input:Account.CM_Supply_Network_Prompt_JSON__c}
+- requested_supply_scenario: {!$Input:SupplyScenario}
+- focus_company_name: 啟碁科技 WNC
+
+硬性規則：
+1. 只輸出純 JSON，不可輸出 markdown、註解或說明文字。
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 所有文字描述欄位必須使用繁體中文。
+4. impact_level 僅能使用：HIGH | MEDIUM | LOW | UNKNOWN。
+5. 若輸入資料不足或無法分析，請輸出：
+   {"error":"IMPACT_ANALYSIS_FAILED","reason":"string"}。
+6. requested_supply_scenario 必須是 FWA_5G、ENTERPRISE_WIFI_AP、AUTOMOTIVE_TELEMATICS 其中之一。
+7. 分析內容只能針對 requested_supply_scenario 對應的供應鏈場景，不得混入其他場景。
+8. key_risks 最多 5 筆，recommended_actions 最多 5 筆，內容須具體可執行。
+9. summary_for_ui 必須是一段 60~220 字的繁中摘要，供前端直接展示。
+
+請輸出以下 JSON 結構（欄位不可缺少）：
+{
+  "analysis_version": "1.0",
+  "analysis_scenario": {
+    "code": "FWA_5G | ENTERPRISE_WIFI_AP | AUTOMOTIVE_TELEMATICS",
+    "label": "5G FWA | Enterprise Wi-Fi AP | Automotive Telematics"
+  },
+  "root_account": "string",
+  "focus_company": "啟碁科技 WNC",
+  "impact_level": "HIGH | MEDIUM | LOW | UNKNOWN",
+  "overall_assessment": "string",
+  "key_risks": [
+    {
+      "title": "string",
+      "impact": "string",
+      "reason": "string"
+    }
+  ],
+  "positive_signals": ["string"],
+  "recommended_actions": ["string"],
+  "summary_for_ui": "string"
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>SupplyScenario</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Supply Scenario</masterLabel>
+            <referenceName>Input:SupplyScenario</referenceName>
+            <required>true</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultGPT4Omni</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>Q01fQUNDT1VOVF9XTkNfSU1QQUNUX1NDRU5BUklPX1YxLTAwMDEyMzQ1Njc4OQ==_1</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+    <visibility>Global</visibility>
+</GenAiPromptTemplate>

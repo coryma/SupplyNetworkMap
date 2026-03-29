@@ -1,85 +1,552 @@
 <template>
-    <lightning-card title="CM Supply Network Graph" icon-name="utility:graph">
-        <div class="toolbar slds-p-horizontal_small slds-p-top_small slds-grid slds-wrap slds-gutters_small">
-            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+  <lightning-card>
+    <div class="toolbar slds-p-horizontal_small slds-p-top_small">
+      <div class="toolbar-main">
+        <div class="toolbar-left">
+          <div class="toolbar-filter-col">
+            <lightning-combobox
+              label={i18n.formLabels.supplyScenario}
+              value={selectedSupplyScenario}
+              options={supplyScenarioOptions}
+              onchange={handleSupplyScenarioChange}
+              disabled={isBusy}
+            ></lightning-combobox>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <div
+            class="toolbar-action-list"
+            role="group"
+            aria-label={i18n.aria.supplyNetworkActions}
+          >
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleSmartBuildFullRebuild}
+              disabled={disableSmartBuildAction}
+              title={i18n.actions.smartBuildFullRebuild}
+              aria-label={i18n.actions.smartBuildFullRebuild}
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>{i18n.actions.smartBuildFullRebuild}</span>
+              </span>
+            </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleSmartBuildUpsert}
+              disabled={disableSmartBuildAction}
+              title={i18n.actions.smartBuildUpsert}
+              aria-label={i18n.actions.smartBuildUpsert}
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>{i18n.actions.smartBuildUpsert}</span>
+              </span>
+            </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleAnalyzeWncImpact}
+              disabled={disableImpactAnalysisAction}
+              title={i18n.actions.analyzeSupplyChain}
+              aria-label={i18n.actions.analyzeSupplyChain}
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>{i18n.actions.analyzeSupplyChain}</span>
+              </span>
+            </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleOpenManualManager}
+              title={i18n.actions.openManualManager}
+              aria-label={i18n.actions.openManualManager}
+            >
+              {i18n.actions.openManualManager}
+            </button>
+          </div>
+          <div
+            class="toolbar-icon-group"
+            role="group"
+            aria-label={i18n.aria.graphCanvasActions}
+          >
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleZoomOut}
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.zoomOutGraph}
+              aria-label={i18n.actions.zoomOutGraph}
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:dash"
+                size="x-small"
+                alternative-text={i18n.altText.zoomOut}
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleFitGraph}
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.fitGraph}
+              aria-label={i18n.actions.fitGraph}
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:move"
+                size="x-small"
+                alternative-text={i18n.altText.fitGraph}
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleZoomIn}
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.zoomInGraph}
+              aria-label={i18n.actions.zoomInGraph}
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:add"
+                size="x-small"
+                alternative-text={i18n.altText.zoomIn}
+              ></lightning-icon>
+            </button>
+            <button
+              class="toolbar-icon-button"
+              type="button"
+              onclick={handleToggleGraphFullscreen}
+              title={i18n.actions.toggleFullscreen}
+              aria-label={i18n.actions.toggleFullscreen}
+            >
+              <lightning-icon
+                class="toolbar-action-icon"
+                icon-name="utility:expand"
+                size="x-small"
+                alternative-text={i18n.altText.toggleFullscreen}
+              ></lightning-icon>
+            </button>
+          </div>
+          <button
+            class="toolbar-refresh-button"
+            type="button"
+            onclick={handleRefreshClick}
+            disabled={isBusy}
+            title={refreshGraphButtonTooltip}
+            aria-label={refreshGraphButtonTooltip}
+          >
+            <lightning-icon
+              class="toolbar-action-icon"
+              icon-name="utility:refresh"
+              size="x-small"
+              alternative-text={i18n.altText.refreshGraph}
+            ></lightning-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <template if:true={isTruncated}>
+      <div class="truncation-note slds-p-horizontal_small">
+        {truncationNote}
+      </div>
+    </template>
+
+    <template if:true={errorMessage}>
+      <div class="state-message error">{errorMessage}</div>
+    </template>
+
+    <template if:true={showEmptyState}>
+      <div class="state-message subtle">{i18n.messages.emptyState}</div>
+    </template>
+
+    <template if:true={showWncImpactAnalysis}>
+      <div class="state-message impact">
+        <div class="impact-title-row">
+          <span class="impact-title">{impactAnalysisHeading}</span>
+          <template if:true={hasWncImpactContext}>
+            <span class="impact-context">{wncImpactContextLabel}</span>
+          </template>
+          <button
+            class="impact-toggle-button"
+            type="button"
+            onclick={handleToggleWncImpactExpanded}
+          >
+            {wncImpactToggleLabel}
+          </button>
+        </div>
+
+        <template if:true={hasWncImpactSummary}>
+          <div class="impact-summary">{wncImpactSummaryPreview}</div>
+        </template>
+
+        <template if:true={showWncImpactSummaryFull}>
+          <div class="impact-body impact-summary-full">{wncImpactSummary}</div>
+        </template>
+
+        <template if:true={showExpandedWncImpactDetails}>
+          <template if:true={hasWncImpactOverallAssessment}>
+            <div class="impact-section">
+              <div class="impact-section-title">
+                {i18n.impactSections.overallAssessment}
+              </div>
+              <div class="impact-body">{wncImpactOverallAssessment}</div>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactRisks}>
+            <div class="impact-section">
+              <div class="impact-section-title">
+                {i18n.impactSections.keyRisks}
+              </div>
+              <template for:each={wncImpactRiskRows} for:item="risk">
+                <div key={risk.key} class="impact-risk-item">
+                  <template if:true={risk.title}>
+                    <div class="impact-risk-heading">{risk.title}</div>
+                  </template>
+                  <template if:true={risk.impact}>
+                    <div class="impact-risk-impact">{risk.impact}</div>
+                  </template>
+                  <template if:true={risk.reason}>
+                    <div class="impact-risk-reason">{risk.reason}</div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactPositiveSignals}>
+            <div class="impact-section">
+              <div class="impact-section-title">
+                {i18n.impactSections.positiveSignals}
+              </div>
+              <template
+                for:each={wncImpactPositiveSignalRows}
+                for:item="signal"
+              >
+                <div key={signal.key} class="impact-list-line">
+                  {signal.text}
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={hasWncImpactRecommendedActions}>
+            <div class="impact-section">
+              <div class="impact-section-title">
+                {i18n.impactSections.recommendedActions}
+              </div>
+              <template
+                for:each={wncImpactRecommendedActionRows}
+                for:item="action"
+              >
+                <div key={action.key} class="impact-list-line">
+                  {action.text}
+                </div>
+              </template>
+            </div>
+          </template>
+        </template>
+      </div>
+      <template if:true={wncImpactGeneratedAtLabel}>
+        <div class="state-message subtle">{wncImpactGeneratedAtText}</div>
+      </template>
+    </template>
+
+    <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
+      <span class="legend-item">
+        <span class="legend-swatch role-design"></span>
+        {i18n.legend.icDesign}
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-manufacturing"></span>
+        {i18n.legend.manufacturing}
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-channel"></span>
+        {i18n.legend.channelOdm}
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-customer"></span>
+        {i18n.legend.endCustomers}
+      </span>
+      <span class="legend-item">
+        <span class="legend-swatch role-competitor"></span>
+        {i18n.legend.competitors}
+      </span>
+    </div>
+
+    <div class={graphShellClass}>
+      <div class="graph" data-id="graph" lwc:dom="manual"></div>
+
+      <template if:true={showLaneExpandControl}>
+        <button
+          class={laneExpandButtonClass}
+          type="button"
+          onclick={handleToggleLaneExpandMode}
+          title={laneExpandButtonTooltip}
+          aria-label={laneExpandButtonTooltip}
+        >
+          <lightning-icon
+            class="graph-expand-icon"
+            icon-name={laneExpandButtonIconName}
+            size="x-small"
+            alternative-text={i18n.altText.toggleLaneExpandMode}
+          ></lightning-icon>
+        </button>
+      </template>
+
+      <template if:true={showGraphStatusOverlay}>
+        <div class="graph-status-stack">
+          <template for:each={graphStatusMessages} for:item="statusItem">
+            <div key={statusItem.key} class={statusItem.className}>
+              <template if:true={statusItem.isLoading}>
+                <span class="prompt-status-dot"></span>
+              </template>
+              <span>{statusItem.text}</span>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template if:true={showGraphSpinner}>
+        <div class="graph-loading-overlay">
+          <lightning-spinner
+            alternative-text={i18n.altText.loadingSupplyNetworkGraph}
+            size="small"
+          ></lightning-spinner>
+        </div>
+      </template>
+
+      <template if:true={generatedAtLabel}>
+        <div class="graph-updated-badge">{graphUpdatedText}</div>
+      </template>
+
+      <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
+        <div class="node-tooltip-title" data-id="tooltip-title"></div>
+        <div class="node-tooltip-meta">
+          <span class="node-tooltip-label" data-id="tooltip-meta-label"
+            >{i18n.tooltips.role}</span
+          >
+          <span data-id="tooltip-role"></span>
+        </div>
+        <div class="node-tooltip-note" data-id="tooltip-note"></div>
+      </div>
+    </div>
+
+    <template if:true={showManualRelationshipManager}>
+      <section class="manual-panel slds-m-horizontal_small slds-m-bottom_small">
+        <div class="manual-panel-header">
+          <h3 class="slds-text-heading_small">{i18n.manualManager.title}</h3>
+          <p class="manual-panel-subtitle">{manualManagerSubtitle}</p>
+        </div>
+
+        <div class="manual-panel-sections">
+          <section class="manual-section manual-section-list">
+            <h4 class="manual-section-title">
+              {i18n.manualManager.relationshipTableTitle}
+            </h4>
+            <div class="manual-list">
+              <template if:true={isManualLoading}>
+                <lightning-spinner
+                  alternative-text={i18n.altText.loadingManualRelationships}
+                  size="small"
+                ></lightning-spinner>
+              </template>
+
+              <template if:true={manualRelationshipsEmpty}>
+                <div class="state-message subtle">
+                  {i18n.messages.noManualRelationships}
+                </div>
+              </template>
+
+              <template if:false={manualRelationshipsEmpty}>
+                <div class="manual-list-table-wrap">
+                  <table
+                    class="slds-table slds-table_cell-buffer slds-table_bordered"
+                  >
+                    <thead>
+                      <tr class="slds-line-height_reset">
+                        <th scope="col">{i18n.tableHeaders.status}</th>
+                        <th scope="col">{i18n.tableHeaders.direction}</th>
+                        <th scope="col">{i18n.tableHeaders.level}</th>
+                        <th scope="col">{i18n.tableHeaders.relatedAccount}</th>
+                        <th scope="col">{i18n.tableHeaders.scenario}</th>
+                        <th scope="col">{i18n.tableHeaders.relationType}</th>
+                        <th scope="col">{i18n.tableHeaders.source}</th>
+                        <th scope="col">{i18n.tableHeaders.updated}</th>
+                        <th scope="col">{i18n.tableHeaders.action}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template for:each={manualRelationships} for:item="row">
+                        <tr key={row.id}>
+                          <td>
+                            <span class={row.badgeClass}
+                              >{row.statusLabel}</span
+                            >
+                          </td>
+                          <td>{row.modeLabel}</td>
+                          <td>{row.pathTypeLabel}</td>
+                          <td>
+                            <template if:true={row.relatedAccountId}>
+                              <button
+                                class="account-link"
+                                data-account-id={row.relatedAccountId}
+                                onclick={handleManualRelatedAccountClick}
+                              >
+                                {row.relatedAccountName}
+                              </button>
+                            </template>
+                            <template if:false={row.relatedAccountId}>
+                              <span>{row.relatedAccountName}</span>
+                            </template>
+                          </td>
+                          <td>{row.supplyScenarioLabel}</td>
+                          <td>{row.relationType}</td>
+                          <td>{row.sourceTypeLabel}</td>
+                          <td>{row.updatedLabel}</td>
+                          <td>
+                            <template if:true={row.isActive}>
+                              <lightning-button-icon
+                                icon-name="utility:block_visitor"
+                                alternative-text={i18n.actions.deactivate}
+                                title={i18n.actions.deactivate}
+                                data-relationship-id={row.id}
+                                onclick={handleDeactivateRelationship}
+                                disabled={disableRelationshipActions}
+                              ></lightning-button-icon>
+                            </template>
+                            <template if:false={row.isActive}>
+                              <div class="manual-row-actions">
+                                <lightning-button-icon
+                                  icon-name="utility:check"
+                                  alternative-text={i18n.actions.activate}
+                                  title={i18n.actions.activate}
+                                  data-relationship-id={row.id}
+                                  onclick={handleActivateRelationship}
+                                  disabled={disableRelationshipActions}
+                                ></lightning-button-icon>
+                                <lightning-button-icon
+                                  icon-name="utility:delete"
+                                  alternative-text={i18n.actions.delete}
+                                  title={i18n.actions.delete}
+                                  data-relationship-id={row.id}
+                                  onclick={handleDeleteRelationship}
+                                  disabled={disableRelationshipActions}
+                                ></lightning-button-icon>
+                              </div>
+                            </template>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
+          </section>
+
+          <section class="manual-section manual-section-form">
+            <h4 class="manual-section-title">
+              {i18n.manualManager.createRelationshipTitle}
+            </h4>
+            <div class="manual-form-grid">
+              <div class="manual-form-col">
                 <lightning-combobox
-                    name="graphFilter"
-                    label="View"
-                    value={selectedFilter}
-                    options={filterOptions}
-                    onchange={handleFilterChange}
-                >
-                </lightning-combobox>
+                  label={i18n.formLabels.mode}
+                  value={relationshipFormMode}
+                  options={relationshipModeOptions}
+                  onchange={handleRelationshipModeChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-combobox>
+
+                <lightning-record-picker
+                  label={i18n.formLabels.relatedAccount}
+                  object-api-name="Account"
+                  value={relationshipFormRelatedAccountId}
+                  onchange={handleRelatedAccountChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-record-picker>
+
+                <lightning-input
+                  label={i18n.formLabels.relationType}
+                  data-field="relationType"
+                  value={relationshipFormRelationType}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-input>
+
+                <lightning-combobox
+                  label={i18n.formLabels.sourceType}
+                  data-field="sourceType"
+                  value={relationshipFormSourceType}
+                  options={sourceTypeOptions}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-combobox>
+
+                <lightning-combobox
+                  label={i18n.formLabels.supplyScenario}
+                  data-field="supplyScenario"
+                  value={relationshipFormSupplyScenario}
+                  options={manualSupplyScenarioOptions}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                  required
+                ></lightning-combobox>
+              </div>
+
+              <div class="manual-form-col">
+                <lightning-input
+                  label={i18n.formLabels.role}
+                  data-field="role"
+                  value={relationshipFormRole}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-input>
+
+                <lightning-textarea
+                  label={i18n.formLabels.products}
+                  data-field="products"
+                  value={relationshipFormProducts}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-textarea>
+
+                <lightning-textarea
+                  label={i18n.formLabels.evidence}
+                  data-field="evidence"
+                  value={relationshipFormEvidence}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                ></lightning-textarea>
+              </div>
             </div>
-            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 toolbar-action">
-                <lightning-button
-                    label="Refresh Graph"
-                    variant="neutral"
-                    onclick={handleRefreshClick}
-                    disabled={isLoading}
-                ></lightning-button>
+
+            <div class="manual-form-actions">
+              <lightning-button
+                label={i18n.actions.createRelationship}
+                variant="brand"
+                onclick={handleCreateRelationship}
+                disabled={disableRelationshipCreate}
+              ></lightning-button>
+              <lightning-button
+                label={i18n.actions.reset}
+                variant="neutral"
+                onclick={handleResetRelationshipForm}
+                disabled={isSavingRelationship}
+              ></lightning-button>
             </div>
-            <template if:true={isTruncated}>
-                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3 truncation-note">
-                    Showing first {nodeCount} nodes (capped for performance).
-                </div>
-            </template>
+          </section>
         </div>
-
-        <template if:true={isRefreshingInBackground}>
-            <div class="state-message info">顯示上次分析結果，背景更新中。</div>
-        </template>
-
-        <template if:true={isLoading}>
-            <lightning-spinner alternative-text="Loading supply network graph" size="small"></lightning-spinner>
-            <div class="state-message info">{loadingStatusMessage}</div>
-        </template>
-
-        <template if:true={errorMessage}>
-            <div class="state-message error">{errorMessage}</div>
-        </template>
-
-        <template if:true={showEmptyState}>
-            <div class="state-message">此帳戶目前沒有可顯示的上下游關係資料。</div>
-        </template>
-
-        <template if:true={coverageNote}>
-            <div class="state-message info">{coverageNote}</div>
-        </template>
-
-        <template if:true={generatedAtLabel}>
-            <div class="state-message subtle">Last updated: {generatedAtLabel}</div>
-        </template>
-
-        <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
-            <span class="legend-item">
-                <span class="legend-swatch role-design"></span>
-                IC Design
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-manufacturing"></span>
-                Manufacturing
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-channel"></span>
-                Channel / ODM
-            </span>
-            <span class="legend-item">
-                <span class="legend-swatch role-customer"></span>
-                End Customers
-            </span>
-        </div>
-
-        <div class="graph-shell slds-p-horizontal_small slds-p-bottom_small">
-            <div class="graph" data-id="graph" lwc:dom="manual"></div>
-            <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
-                <div class="node-tooltip-title" data-id="tooltip-title"></div>
-                <div class="node-tooltip-meta">
-                    <span class="node-tooltip-label">Role</span>
-                    <span data-id="tooltip-role"></span>
-                </div>
-                <div class="node-tooltip-note" data-id="tooltip-note"></div>
-            </div>
-        </div>
-    </lightning-card>
+      </section>
+    </template>
+  </lightning-card>
 </template>

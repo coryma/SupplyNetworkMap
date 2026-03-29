@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier
+  >Q01fQUNDT1VOVF9TVVBQTFlfTkVUV09SS19TQ0VOQVJJT19WMS0wMDAxMjM0NTY3ODk=_1</activeVersionIdentifier>
+    <developerName>CM_Account_Supply_Network_Discovery_SCENARIO</developerName>
+    <masterLabel>CM - Account 上下游關係擷取 (Scenario)</masterLabel>
+    <templateVersions>
+        <content>你是「企業供應鏈關係擷取引擎」。
+
+目標：根據目標公司（Root Account）資料，找出上游廠商、下游客戶與主要競爭者。你必須支援「多層級供應鏈路徑（Multi-tier Graph Edges）」，並輸出可直接被 Apex 解析與建圖的嚴格 JSON。
+
+輸入公司資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_account_description: {!$Input:Account.Description}
+- root_account_region: {!$Input:Account.BillingCountry}
+- requested_supply_scenario: {!$Input:SupplyScenario}
+- focus_company_name: 啟碁科技 WNC
+
+供應鏈場景定義：
+- FWA_5G: 5G FWA CPE、室內/室外路由器、相關 RF / modem / antenna / gateway 供應鏈
+- ENTERPRISE_WIFI_AP: 企業級 Wi-Fi AP、WLAN 基礎設施、控制器與企業網通部署供應鏈
+- AUTOMOTIVE_TELEMATICS: 車聯網模組、TCU、車載連網、C-V2X / LTE / 5G 車用通訊供應鏈
+
+硬性規則：
+1. ⚠️ 【極度重要】只輸出純 JSON 字串！你的輸出必須以 `{` 開頭，以 `}` 結尾。絕對不可輸出 ```json 等任何 Markdown 標籤、註解或解釋文字，否則系統會嚴重崩潰！
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 若你無法輸出符合本規格的 JSON，請改為輸出 {"error":"SCHEMA_VALIDATION_FAILED","reason":"string"}。
+4. requested_supply_scenario 必須是 FWA_5G、ENTERPRISE_WIFI_AP、AUTOMOTIVE_TELEMATICS 其中之一；若值無效，請輸出 {"error":"INVALID_SUPPLY_SCENARIO","reason":"string"}。
+5. confidence 必須介於 0.0 到 1.0，低於 0.55 的關係不要輸出到 relationships。
+6. 所有 company_domain 為必填，格式為網域，不可包含 http/https；若無法判斷網域，該公司放入 unresolved_companies。
+7. ⚠️ 【名稱簡化規則】所有輸出的公司名稱必須強制使用業界通用的「簡稱」或「縮寫」（例如：WNC、WPG、TSMC），禁止使用包含 Holding、Inc 等冗長全名。
+8. ⚠️ 【繁體中文強制】所有文字描述欄位必須強制使用「繁體中文」。擷取到的英文原文證據必須翻譯成繁中短句。
+9. ⚠️ 【實體供應鏈與代理商邏輯】relationships 陣列代表圖學上的有向邊。Source (賣方) 到 Target (買方) 之間必須存在「真實的金流與物流」。
+   - 若得知原廠是透過代理商或電子零組件通路商（如大聯大 WPG、文曄 WT Microelectronics、艾睿 Arrow 等）供貨給下游，請將「原廠至代理商」的 edge_category 標記為 `DISTRIBUTOR`，並建立「代理商至最終客戶」的 `INDIRECT_PATH`。
+10. ⚠️ 【排除技術與認證關係】若兩家公司僅為「技術認證」或「參考設計」，並未買斷產品轉賣，必須將 edge_category 標記為 `TECHNICAL_PARTNER`。
+11. ⚠️ 【競爭者方向強制規定】若是同業競爭關係，強制將輸入的 Root Account 簡稱放在 `source_company_name`，競爭對手放在 `target_company_name`（即 Root Account -> Competitor）。絕對不可顛倒！且不可將 Focus Company 的同業標記為 Root Account 的 COMPETITOR。
+12. 支援多節點路徑：允許出現 root_account 以外的邊。
+13. 先以邊的組合 (source_domain + target_domain) 去重，不可出現完全重複的關係路徑。
+14. 每筆 relationships.evidence 至少 1 條且不可空字串。
+15. focus_company_analysis.relationship_category 必須是：
+   DIRECT_UPSTREAM | DIRECT_DOWNSTREAM | INDIRECT_TIER | CO_DEVELOPMENT | COMPETITOR | NO_DIRECT_RELATION
+16. relationships.edge_category 只能是：
+   UPSTREAM | DOWNSTREAM | COMPETITOR | INDIRECT_PATH | TECHNICAL_PARTNER | DISTRIBUTOR
+17. relationships.source_type 只能是：PUBLIC_INFO | INFERRED。
+18. 只允許以下頂層鍵：schema_version, analysis_scenario, root_account, relationships, focus_company_analysis, unresolved_companies, summary, quality。
+19. 必須執行 must-include 清單檢查。清單固定為兩個：輸入的 Root Account 本身以及輸入的 Focus Company。
+20. 本次分析只能輸出與 requested_supply_scenario 直接相關的公司與關係，不得混入其他場景。
+21. ⚠️ 【精準計數防呆】summary 內的計數必須與你最終輸出的 relationships 陣列完全吻合。請逐一盤點各 edge_category 的實際數量，絕不可憑空捏造數字：
+   - direct_upstream_count: edge_category 為 UPSTREAM 的數量。
+   - direct_downstream_count: edge_category 為 DOWNSTREAM 的數量。
+   - indirect_path_count: edge_category 為 INDIRECT_PATH 的數量。
+   - competitor_count: edge_category 為 COMPETITOR 的數量。
+   - technical_partner_count: edge_category 為 TECHNICAL_PARTNER 的數量。
+   - distributor_count: edge_category 為 DISTRIBUTOR 的數量。
+
+請輸出以下 JSON 結構（請將 `&lt;...&gt;` 標籤替換為實際解析結果，不可保留 `&lt;&gt;` 符號）：
+{
+  "schema_version": "3.3",
+  "analysis_scenario": {
+    "code": "FWA_5G | ENTERPRISE_WIFI_AP | AUTOMOTIVE_TELEMATICS",
+    "label": "5G FWA | Enterprise Wi-Fi AP | Automotive Telematics"
+  },
+  "root_account": {
+    "name": "&lt;帶入輸入的 root_account_name 簡稱&gt;",
+    "website": "&lt;帶入輸入的 root_account_website&gt;",
+    "domain": "string",
+    "region": "&lt;帶入輸入的 root_account_region&gt;",
+    "core_positioning": "string"
+  },
+  "relationships": [
+    {
+      "source_company_name": "string",
+      "source_company_domain": "string",
+      "target_company_name": "string",
+      "target_company_domain": "string",
+      "edge_category": "UPSTREAM | DOWNSTREAM | COMPETITOR | INDIRECT_PATH | TECHNICAL_PARTNER | DISTRIBUTOR",
+      "relation_type": "string",
+      "market_risk_note": "string",
+      "role": "string",
+      "products": ["string"],
+      "confidence": 0.0,
+      "source_type": "PUBLIC_INFO | INFERRED",
+      "evidence": ["string"],
+      "is_focus_company_path": false
+    }
+  ],
+  "focus_company_analysis": {
+    "focus_company_name": "&lt;帶入輸入的 focus_company_name 簡稱&gt;",
+    "focus_company_domain": "string",
+    "matched_in_relationships": true,
+    "has_direct_relationship": false,
+    "relationship_category": "DIRECT_UPSTREAM | DIRECT_DOWNSTREAM | INDIRECT_TIER | CO_DEVELOPMENT | COMPETITOR | NO_DIRECT_RELATION",
+    "involved_products_or_technologies": ["string"],
+    "detailed_analysis": "string"
+  },
+  "unresolved_companies": [
+    {
+      "company_name": "string",
+      "reason": "string"
+    }
+  ],
+  "summary": {
+    "direct_upstream_count": 0,
+    "direct_downstream_count": 0,
+    "indirect_path_count": 0,
+    "competitor_count": 0,
+    "technical_partner_count": 0,
+    "distributor_count": 0,
+    "coverage_note": "string"
+  },
+  "quality": {
+    "min_confidence_applied": 0.55,
+    "dedupe_key": "source_domain_and_target_domain",
+    "must_include_targets": ["&lt;帶入 Root Account 簡稱&gt;", "&lt;帶入 Focus Company 簡稱&gt;"],
+    "coverage_gaps": ["string"],
+    "must_include_check": [
+      {
+        "company_name": "string",
+        "found": true,
+        "status_note": "string"
+      }
+    ]
+  }
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName
+      >einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName
+      >einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>SupplyScenario</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Supply Scenario</masterLabel>
+            <referenceName>Input:SupplyScenario</referenceName>
+            <required>true</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultGPT4Omni</primaryModel>
+        <status>Published</status>
+        <versionIdentifier
+    >Q01fQUNDT1VOVF9TVVBQTFlfTkVUV09SS19TQ0VOQVJJT19WMS0wMDAxMjM0NTY3ODk=_1</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+    <visibility>Global</visibility>
+</GenAiPromptTemplate>

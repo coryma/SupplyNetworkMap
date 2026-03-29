@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Translations xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customLabels>
+        <label>供應鏈分析</label>
+        <name>CM_Supply_Chain_Analysis_Tab</name>
+    </customLabels>
+    <customLabels>
+        <label>供應商資訊</label>
+        <name>CM_Supplier_Info_Tab</name>
+    </customLabels>
+</Translations>

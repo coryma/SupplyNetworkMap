@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CM_Source_Target_Must_Differ</fullName>
+    <active>true</active>
+    <description>Prevent self-loop edges in manual relationship records.</description>
+    <errorConditionFormula>Source_Account__c = Target_Account__c</errorConditionFormula>
+    <errorDisplayField>Target_Account__c</errorDisplayField>
+    <errorMessage>Source Account and Target Account must be different.</errorMessage>
+</ValidationRule>

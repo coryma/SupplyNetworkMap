@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier>k3vL3DXGjrieqcBsxI6NpkntsB7q7BfJMg3llS6oFys=_3</activeVersionIdentifier>
+    <developerName>CM_Account_WNC_Impact_Analysis</developerName>
+    <masterLabel>CM - WNC 供應鏈影響分析</masterLabel>
+    <overridable>false</overridable>
+    <templateVersions>
+        <content>你是「供應鏈風險與影響分析引擎」。
+
+目標：
+針對 Root Account 在指定供應鏈場景下的供應鏈 JSON 進行分析，評估該供應鏈對指定 Focus Company 的潛在影響，並輸出可被 Apex 直接解析的嚴格 JSON。
+
+輸入資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_supply_network_json: {!$Input:Account.CM_Supply_Network_Prompt_JSON__c}
+- requested_supply_scenario: {!$Input:SupplyScenario}
+- focus_company_name: {!$Input:FocusCompanyName}
+- focus_company_domain: {!$Input:FocusCompanyDomain}
+
+硬性規則：
+1. 只輸出純 JSON，不可輸出 markdown、註解或說明文字。
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 所有文字描述欄位必須使用繁體中文。
+4. impact_level 僅能使用：HIGH | MEDIUM | LOW | UNKNOWN。
+5. 若輸入資料不足或無法分析，請輸出：
+   {&quot;error&quot;:&quot;IMPACT_ANALYSIS_FAILED&quot;,&quot;reason&quot;:&quot;string&quot;}。
+6. requested_supply_scenario 必須是 FWA_5G、ENTERPRISE_WIFI_AP、AUTOMOTIVE_TELEMATICS 其中之一。
+7. 分析內容只能針對 requested_supply_scenario 對應的供應鏈場景，不得混入其他場景。
+8. key_risks 最多 5 筆，recommended_actions 最多 5 筆，內容須具體可執行。
+9. summary_for_ui 必須是一段 60~220 字的繁中摘要，供前端直接展示。
+
+請輸出以下 JSON 結構（欄位不可缺少）：
+{
+  &quot;analysis_version&quot;: &quot;1.0&quot;,
+  &quot;analysis_scenario&quot;: {
+    &quot;code&quot;: &quot;FWA_5G | ENTERPRISE_WIFI_AP | AUTOMOTIVE_TELEMATICS&quot;,
+    &quot;label&quot;: &quot;5G FWA | Enterprise Wi-Fi AP | Automotive Telematics&quot;
+  },
+  &quot;root_account&quot;: &quot;string&quot;,
+  &quot;focus_company&quot;: &quot;string (must equal focus_company_name input when provided)&quot;,
+  &quot;impact_level&quot;: &quot;HIGH | MEDIUM | LOW | UNKNOWN&quot;,
+  &quot;overall_assessment&quot;: &quot;string&quot;,
+  &quot;key_risks&quot;: [
+    {
+      &quot;title&quot;: &quot;string&quot;,
+      &quot;impact&quot;: &quot;string&quot;,
+      &quot;reason&quot;: &quot;string&quot;
+    }
+  ],
+  &quot;positive_signals&quot;: [&quot;string&quot;],
+  &quot;recommended_actions&quot;: [&quot;string&quot;],
+  &quot;summary_for_ui&quot;: &quot;string&quot;
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>SupplyScenario</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Supply Scenario</masterLabel>
+            <referenceName>Input:SupplyScenario</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyName</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Name</masterLabel>
+            <referenceName>Input:FocusCompanyName</referenceName>
+            <required>false</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyDomain</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Domain</masterLabel>
+            <referenceName>Input:FocusCompanyDomain</referenceName>
+            <required>false</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultGPT4Omni</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>Q01fQUNDT1VOVF9XTkNfSU1QQUNUX1YyMV9TQ0VOQVJJT18wMDAwMDAwMDAwMQ==_1</versionIdentifier>
+    </templateVersions>
+    <templateVersions>
+        <content>你是「供應鏈風險與影響分析引擎」。
+
+目標：
+針對 Root Account 在指定供應鏈場景下的供應鏈 JSON 進行分析，評估該供應鏈對指定 Focus Company 的潛在影響，並輸出可被 Apex 直接解析的嚴格 JSON。
+
+輸入資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_supply_network_json: {!$Input:Account.CM_Supply_Network_Prompt_JSON__c}
+- requested_supply_scenario: {!$Input:SupplyScenario}
+- focus_company_name: {!$Input:FocusCompanyName}
+- focus_company_domain: {!$Input:FocusCompanyDomain}
+
+硬性規則：
+1. 只輸出純 JSON，不可輸出 markdown、註解或說明文字。
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 所有文字描述欄位必須使用繁體中文。
+4. impact_level 僅能使用：HIGH | MEDIUM | LOW | UNKNOWN。
+5. 若輸入資料不足或無法分析，請輸出：
+   {&quot;error&quot;:&quot;IMPACT_ANALYSIS_FAILED&quot;,&quot;reason&quot;:&quot;string&quot;}。
+6. requested_supply_scenario 必須是 FWA_5G、ENTERPRISE_WIFI_AP、AUTOMOTIVE_TELEMATICS 其中之一。
+7. 分析內容只能針對 requested_supply_scenario 對應的供應鏈場景，不得混入其他場景。
+8. key_risks 最多 5 筆，recommended_actions 最多 5 筆，內容須具體可執行。
+9. summary_for_ui 必須是一段 60~220 字的繁中摘要，供前端直接展示。
+
+請輸出以下 JSON 結構（欄位不可缺少）：
+{
+  &quot;analysis_version&quot;: &quot;1.0&quot;,
+  &quot;analysis_scenario&quot;: {
+    &quot;code&quot;: &quot;FWA_5G | ENTERPRISE_WIFI_AP | AUTOMOTIVE_TELEMATICS&quot;,
+    &quot;label&quot;: &quot;5G FWA | Enterprise Wi-Fi AP | Automotive Telematics&quot;
+  },
+  &quot;root_account&quot;: &quot;string&quot;,
+  &quot;focus_company&quot;: &quot;string (must equal focus_company_name input when provided)&quot;,
+  &quot;impact_level&quot;: &quot;HIGH | MEDIUM | LOW | UNKNOWN&quot;,
+  &quot;overall_assessment&quot;: &quot;string&quot;,
+  &quot;key_risks&quot;: [
+    {
+      &quot;title&quot;: &quot;string&quot;,
+      &quot;impact&quot;: &quot;string&quot;,
+      &quot;reason&quot;: &quot;string&quot;
+    }
+  ],
+  &quot;positive_signals&quot;: [&quot;string&quot;],
+  &quot;recommended_actions&quot;: [&quot;string&quot;],
+  &quot;summary_for_ui&quot;: &quot;string&quot;
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>SupplyScenario</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Supply Scenario</masterLabel>
+            <referenceName>Input:SupplyScenario</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyName</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Name</masterLabel>
+            <referenceName>Input:FocusCompanyName</referenceName>
+            <required>false</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyDomain</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Domain</masterLabel>
+            <referenceName>Input:FocusCompanyDomain</referenceName>
+            <required>false</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultVertexAIGeminiPro30</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>gn08+0OlVDyuYLmBlHYpkYP+9IiAPFyJaeHZwQLUDNI=_2</versionIdentifier>
+    </templateVersions>
+    <templateVersions>
+        <content>你是「供應鏈風險與影響分析引擎」。
+
+目標：
+針對 Root Account 在指定供應鏈場景下的供應鏈 JSON 進行分析，評估該供應鏈對指定 Focus Company 的潛在影響，並輸出可被 Apex 直接解析的嚴格 JSON。
+
+輸入資料：
+- root_account_name: {!$Input:Account.Name}
+- root_account_website: {!$Input:Account.Website}
+- root_account_industry: {!$Input:Account.Industry}
+- root_supply_network_json: {!$Input:Account.CM_Supply_Network_Prompt_JSON__c}
+- requested_supply_scenario: {!$Input:SupplyScenario}
+- focus_company_name: {!$Input:FocusCompanyName}
+
+
+硬性規則：
+1. 只輸出純 JSON，不可輸出 markdown、註解或說明文字。
+2. JSON 必須可被標準 parser 解析（雙引號，無 trailing comma）。
+3. 所有文字描述欄位必須使用繁體中文。
+4. impact_level 僅能使用：HIGH | MEDIUM | LOW | UNKNOWN。
+5. 若輸入資料不足或無法分析，請輸出：
+   {&quot;error&quot;:&quot;IMPACT_ANALYSIS_FAILED&quot;,&quot;reason&quot;:&quot;string&quot;}。
+6. 分析內容只能針對 requested_supply_scenario 對應的供應鏈場景，不得混入其他場景。
+7. key_risks 最多 5 筆，recommended_actions 最多 5 筆，內容須具體可執行。
+8. summary_for_ui 必須是一段 60~220 字的繁中摘要，供前端直接展示。
+
+請輸出以下 JSON 結構（欄位不可缺少）：
+{
+  &quot;analysis_version&quot;: &quot;1.0&quot;,
+  &quot;analysis_scenario&quot;: {
+    &quot;code&quot;: &quot;FWA_5G | ENTERPRISE_WIFI_AP | AUTOMOTIVE_TELEMATICS&quot;,
+    &quot;label&quot;: &quot;5G FWA | Enterprise Wi-Fi AP | Automotive Telematics&quot;
+  },
+  &quot;root_account&quot;: &quot;string&quot;,
+  &quot;focus_company&quot;: &quot;string (must equal focus_company_name input when provided)&quot;,
+  &quot;impact_level&quot;: &quot;HIGH | MEDIUM | LOW | UNKNOWN&quot;,
+  &quot;overall_assessment&quot;: &quot;string&quot;,
+  &quot;key_risks&quot;: [
+    {
+      &quot;title&quot;: &quot;string&quot;,
+      &quot;impact&quot;: &quot;string&quot;,
+      &quot;reason&quot;: &quot;string&quot;
+    }
+  ],
+  &quot;positive_signals&quot;: [&quot;string&quot;],
+  &quot;recommended_actions&quot;: [&quot;string&quot;],
+  &quot;summary_for_ui&quot;: &quot;string&quot;
+}
+</content>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__zhTwLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <generationTemplateConfigs>
+            <generationConfigDeveloperName>einstein_gpt__enUsLanguageStyle</generationConfigDeveloperName>
+        </generationTemplateConfigs>
+        <inputs>
+            <apiName>RelatedEntity</apiName>
+            <definition>SOBJECT://Account</definition>
+            <referenceName>Input:Account</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>SupplyScenario</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Supply Scenario</masterLabel>
+            <referenceName>Input:SupplyScenario</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyName</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Name</masterLabel>
+            <referenceName>Input:FocusCompanyName</referenceName>
+            <required>false</required>
+        </inputs>
+        <inputs>
+            <apiName>FocusCompanyDomain</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>Focus Company Domain</masterLabel>
+            <referenceName>Input:FocusCompanyDomain</referenceName>
+            <required>false</required>
+        </inputs>
+        <primaryModel>sfdc_ai__DefaultVertexAIGeminiPro30</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>k3vL3DXGjrieqcBsxI6NpkntsB7q7BfJMg3llS6oFys=_3</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+    <visibility>Global</visibility>
+</GenAiPromptTemplate>

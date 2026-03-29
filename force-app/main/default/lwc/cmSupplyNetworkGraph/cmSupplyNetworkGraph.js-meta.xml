@@ -17,7 +17,7 @@
                 type="Integer"
                 label="Max Nodes"
                 description="Maximum nodes to return before graph truncation."
-                default="150"
+                default="15"
             />
             <property
                 name="displayMode"
@@ -26,6 +26,13 @@
                 description="network keeps compact relationship layout; story uses annotated lane presentation."
                 datasource="network,story"
                 default="story"
+            />
+            <property
+                name="autoPromptEnabled"
+                type="Boolean"
+                label="Enable Auto Prompt by Default (Deprecated)"
+                description="Deprecated. This option is ignored; graph now prioritizes existing relationship records."
+                default="false"
             />
         </targetConfig>
     </targetConfigs>
