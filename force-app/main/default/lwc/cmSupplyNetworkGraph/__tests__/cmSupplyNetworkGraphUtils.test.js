@@ -65,6 +65,15 @@ describe('cmSupplyNetworkGraphUtils', () => {
         expect(filtered.edges).toHaveLength(3);
     });
 
+    it('always marks WNC nodes with dedicated class', () => {
+        const positions = computeNodePositions(sampleNodes);
+        const filtered = buildFilteredElements(sampleNodes, sampleEdges, FILTER_VALUES.ALL, positions);
+        const wncNode = filtered.nodes.find((node) => node.data.id === 'down1');
+
+        expect(wncNode).toBeDefined();
+        expect(wncNode.classes.split(' ')).toContain('wnc-focus');
+    });
+
     it('builds annotated lane elements for story mode', () => {
         const positions = computeNodePositions(sampleNodes, 260, 200);
         const storyElements = buildStoryElements(sampleNodes, sampleEdges, FILTER_VALUES.ALL, positions);

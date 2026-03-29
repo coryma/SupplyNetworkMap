@@ -11,6 +11,49 @@ export const DISPLAY_MODES = Object.freeze({
 
 const DEFAULT_POSITION = { x: 0, y: 0 };
 const COMPETITOR_DIRECTION = 'COMPETITOR';
+const DEFAULT_GRAPH_LABELS = Object.freeze({
+    edgeFallbackRelation: 'Related',
+    laneLabels: {
+        upstreamTier1: 'Tier 1 Upstream Suppliers',
+        upstreamTier2: 'Tier 2 Upstream Suppliers',
+        upstreamTier3: 'Multi-tier Upstream Suppliers',
+        downstreamTier1: 'Tier 1 Downstream Customers',
+        downstreamTier2: 'Tier 2 Downstream Customers',
+        downstreamTier3: 'Multi-tier Downstream Customers',
+        competitor: 'Competitors'
+    },
+    nodeInsights: {
+        defaultRole: 'Related Role',
+        defaultNote: 'AI-generated supply chain relationship.',
+        rootRole: 'IC Design Company',
+        rootNote: 'Key products: 5G Modem, Wi-Fi 7 SoC, Snapdragon platform',
+        upstreamRole: 'Upstream manufacturing and OSAT partners',
+        upstreamNote: 'Provides foundry, packaging, and test capabilities.',
+        competitorRole: 'Competitor',
+        competitorNote: 'Competes with the core node across key product lines and markets.',
+        downstreamCustomerRole: 'End-customer adopter',
+        downstreamCustomerNote: 'Deploys the solution into enterprise networking, automotive, or telecom scenarios.',
+        downstreamChannelRole: 'Channel / ODM integrator',
+        downstreamChannelNote: 'Handles fulfillment, FAE support, and full-system integration.',
+        relatedNodeRole: 'Related Node',
+        relatedNodeNote: 'This node is connected to the main supply chain.'
+    }
+});
+
+function resolveGraphLabels(labels = {}) {
+    return {
+        edgeFallbackRelation:
+            labels?.edgeFallbackRelation || DEFAULT_GRAPH_LABELS.edgeFallbackRelation,
+        laneLabels: {
+            ...DEFAULT_GRAPH_LABELS.laneLabels,
+            ...(labels?.laneLabels || {})
+        },
+        nodeInsights: {
+            ...DEFAULT_GRAPH_LABELS.nodeInsights,
+            ...(labels?.nodeInsights || {})
+        }
+    };
+}
 
 export function computeNodePositions(nodes, horizontalSpacing = 220, verticalSpacing = 180) {
     const positions = {};
@@ -67,17 +110,29 @@ export function computeNodePositions(nodes, horizontalSpacing = 220, verticalSpa
     return positions;
 }
 
-export function buildFilteredElements(nodes, edges, filterValue, positionsByNode = {}) {
+export function buildFilteredElements(
+    nodes,
+    edges,
+    filterValue,
+    positionsByNode = {},
+    focusContext = {},
+    labels = {}
+) {
     const activeFilter = normalizeFilter(filterValue);
+    const focusMatcher = buildFocusMatcher(focusContext);
+    const graphLabels = resolveGraphLabels(labels);
     const candidateNodeElements = (nodes || [])
         .filter((node) => shouldIncludeNode(node, activeFilter))
         .map((node) => {
-            const nodeInsight = buildNodeInsight(node);
+            const nodeInsight = buildNodeInsight(node, graphLabels.nodeInsights);
+            const isFocusCompany = isFocusCompanyNode(node, focusMatcher);
             return {
                 data: {
                     id: node.id,
                     label: node.label,
                     accountId: node.accountId || null,
+                    isFocusCompany,
+                    companyDomain: node.companyDomain || '',
                     signedLevel: node.signedLevel,
                     isRoot: node.isRoot,
                     accountType: node.accountType || '',
@@ -89,7 +144,7 @@ export function buildFilteredElements(nodes, edges, filterValue, positionsByNode
                     isVirtual: false
                 },
                 position: positionsByNode[node.id] || DEFAULT_POSITION,
-                classes: getNodeClasses(node)
+                classes: getNodeClasses(node, isFocusCompany)
             };
         });
     const allowedNodeIds = new Set(
@@ -107,7 +162,7 @@ export function buildFilteredElements(nodes, edges, filterValue, positionsByNode
                 id: edge.id || `${edge.sourceId}-${edge.targetId}-${index}`,
                 source: edge.sourceId,
                 target: edge.targetId,
-                relationType: edge.relationType || 'Related',
+                relationType: edge.relationType || graphLabels.edgeFallbackRelation,
                 edgeCategory: edge.edgeCategory || '',
                 relationshipDirection: edge.relationshipDirection || '',
                 marketRiskNote: edge.marketRiskNote || '',
@@ -140,16 +195,31 @@ export function buildFilteredElements(nodes, edges, filterValue, positionsByNode
     };
 }
 
-export function buildStoryElements(nodes, edges, filterValue, positionsByNode = {}) {
+export function buildStoryElements(
+    nodes,
+    edges,
+    filterValue,
+    positionsByNode = {},
+    focusContext = {},
+    labels = {}
+) {
+    const graphLabels = resolveGraphLabels(labels);
     const hasProvidedPositions = Object.keys(positionsByNode || {}).length > 0;
     const basePositions = hasProvidedPositions ? positionsByNode : computeNodePositions(nodes, 260, 200);
-    const coreElements = buildFilteredElements(nodes, edges, filterValue, basePositions);
+    const coreElements = buildFilteredElements(
+        nodes,
+        edges,
+        filterValue,
+        basePositions,
+        focusContext,
+        graphLabels
+    );
 
     if (!coreElements.nodes.length) {
         return coreElements;
     }
 
-    const laneElements = buildLaneElements(coreElements.nodes);
+    const laneElements = buildLaneElements(coreElements.nodes, graphLabels.laneLabels);
 
     return {
         nodes: [...laneElements, ...coreElements.nodes],
@@ -174,32 +244,32 @@ function shouldIncludeNode(node, filterValue) {
     return node.isRoot || (node.signedLevel >= 0 && !isCompetitorNode(node));
 }
 
-function getNodeClasses(node) {
+function getNodeClasses(node, isFocusCompany) {
     const classes = ['entity', 'interactive'];
     if (node.isRoot) {
         classes.push('root', 'role-design');
-        return classes.join(' ');
-    }
-    if (node.signedLevel < 0) {
+    } else if (node.signedLevel < 0) {
         classes.push('upstream', 'role-manufacturing');
-        return classes.join(' ');
-    }
-    if (node.signedLevel > 0) {
+    } else if (node.signedLevel > 0) {
         classes.push('downstream');
         if (isCompetitorNode(node)) {
             classes.push('competitor', 'role-competitor');
-            return classes.join(' ');
-        }
-
-        const depth = Number(node.downstreamDepth);
-        if (Number.isFinite(depth) && depth >= 2) {
-            classes.push('tier-2', 'role-customer');
         } else {
-            classes.push('tier-1', 'role-channel');
+            const depth = Number(node.downstreamDepth);
+            if (Number.isFinite(depth) && depth >= 2) {
+                classes.push('tier-2', 'role-customer');
+            } else {
+                classes.push('tier-1', 'role-channel');
+            }
         }
-        return classes.join(' ');
+    } else {
+        classes.push('neutral');
     }
-    classes.push('neutral');
+
+    if (isFocusCompany) {
+        classes.push('wnc-focus', 'focus-company');
+    }
+
     return classes.join(' ');
 }
 
@@ -248,11 +318,11 @@ function getEdgeClasses(edge) {
     return classes.join(' ');
 }
 
-function buildLaneElements(entityNodes) {
+function buildLaneElements(entityNodes, laneLabels = DEFAULT_GRAPH_LABELS.laneLabels) {
     const laneDefinitions = [
         {
             id: 'lane-upstream-tier1',
-            label: '上游一階供應',
+            label: laneLabels.upstreamTier1,
             nodeFilter: (node) =>
                 getSignedLevel(node) === -1 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-upstream lane-upstream-tier1',
@@ -263,7 +333,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-upstream-tier2',
-            label: '上游二階供應',
+            label: laneLabels.upstreamTier2,
             nodeFilter: (node) =>
                 getSignedLevel(node) === -2 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-upstream lane-upstream-tier2',
@@ -274,7 +344,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-upstream-tier3',
-            label: '上游多階供應',
+            label: laneLabels.upstreamTier3,
             nodeFilter: (node) =>
                 getSignedLevel(node) <= -3 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-upstream lane-upstream-tier3',
@@ -285,7 +355,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-downstream-tier1',
-            label: '下游一階客戶',
+            label: laneLabels.downstreamTier1,
             nodeFilter: (node) =>
                 getSignedLevel(node) === 1 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-downstream lane-downstream-tier1',
@@ -296,7 +366,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-downstream-tier2',
-            label: '下游二階客戶',
+            label: laneLabels.downstreamTier2,
             nodeFilter: (node) =>
                 getSignedLevel(node) === 2 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-downstream lane-downstream-tier2',
@@ -307,7 +377,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-downstream-tier3',
-            label: '下游多階客戶',
+            label: laneLabels.downstreamTier3,
             nodeFilter: (node) =>
                 getSignedLevel(node) >= 3 && !isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-downstream lane-downstream-tier3',
@@ -318,7 +388,7 @@ function buildLaneElements(entityNodes) {
         },
         {
             id: 'lane-competitor',
-            label: '同業競爭',
+            label: laneLabels.competitor,
             nodeFilter: (node) => isCompetitorDirection(node?.data?.relationshipDirection),
             laneClass: 'lane-competitor',
             minWidth: 440,
@@ -385,32 +455,32 @@ function computeBounds(nodes) {
     };
 }
 
-function buildNodeInsight(node) {
+function buildNodeInsight(node, nodeInsightLabels = DEFAULT_GRAPH_LABELS.nodeInsights) {
     if (!isBlank(node?.roleLabel) || !isBlank(node?.noteText)) {
         return {
-            roleLabel: node.roleLabel || '關聯角色',
-            noteText: node.noteText || 'AI 產生的供應鏈關係。'
+            roleLabel: node.roleLabel || nodeInsightLabels.defaultRole,
+            noteText: node.noteText || nodeInsightLabels.defaultNote
         };
     }
 
     if (node.isRoot) {
         return {
-            roleLabel: 'IC 設計原廠',
-            noteText: '關鍵產品: 5G Modem、Wi-Fi 7 SoC、Snapdragon 平台'
+            roleLabel: nodeInsightLabels.rootRole,
+            noteText: nodeInsightLabels.rootNote
         };
     }
 
     if (node.signedLevel < 0) {
         return {
-            roleLabel: '上游製造與封測夥伴',
-            noteText: '提供晶圓代工、封裝與測試能力。'
+            roleLabel: nodeInsightLabels.upstreamRole,
+            noteText: nodeInsightLabels.upstreamNote
         };
     }
 
     if (isCompetitorNode(node)) {
         return {
-            roleLabel: '同業競爭者',
-            noteText: '與核心節點在關鍵產品線與市場上形成競爭。'
+            roleLabel: nodeInsightLabels.competitorRole,
+            noteText: nodeInsightLabels.competitorNote
         };
     }
 
@@ -418,24 +488,217 @@ function buildNodeInsight(node) {
         const depth = Number(node.downstreamDepth);
         if (Number.isFinite(depth) && depth >= 2) {
             return {
-                roleLabel: '終端採用客戶',
-                noteText: '將方案導入企業網通、車聯網或電信場景。'
+                roleLabel: nodeInsightLabels.downstreamCustomerRole,
+                noteText: nodeInsightLabels.downstreamCustomerNote
             };
         }
         return {
-            roleLabel: '通路/ODM 系統整合',
-            noteText: '負責供貨、FAE 支援與產品整機整合。'
+            roleLabel: nodeInsightLabels.downstreamChannelRole,
+            noteText: nodeInsightLabels.downstreamChannelNote
         };
     }
 
     return {
-        roleLabel: '關聯節點',
-        noteText: '此節點與主供應鏈存在關聯。'
+        roleLabel: nodeInsightLabels.relatedNodeRole,
+        noteText: nodeInsightLabels.relatedNodeNote
     };
 }
 
 function isBlank(value) {
     return value === null || value === undefined || String(value).trim() === '';
+}
+
+function buildFocusMatcher(focusContext) {
+    const exactNameCandidates = new Set();
+    const exactCompactNameCandidates = new Set();
+    const aliasNameCandidates = new Set();
+    const aliasCompactNameCandidates = new Set();
+    const domainCandidates = new Set();
+    addExactNameCandidate(
+        exactNameCandidates,
+        exactCompactNameCandidates,
+        focusContext?.focusCompanyName
+    );
+    addExactNameCandidate(
+        exactNameCandidates,
+        exactCompactNameCandidates,
+        focusContext?.impactFocusCompanyName
+    );
+    addAliasCandidate(
+        aliasNameCandidates,
+        aliasCompactNameCandidates,
+        focusContext?.focusCompanyAlias
+    );
+    addDomainCandidate(domainCandidates, focusContext?.focusCompanyDomain);
+
+    return {
+        exactNameCandidates,
+        exactCompactNameCandidates,
+        aliasNameCandidates,
+        aliasCompactNameCandidates,
+        domainCandidates,
+        hasCandidates:
+            exactNameCandidates.size > 0 ||
+            exactCompactNameCandidates.size > 0 ||
+            aliasNameCandidates.size > 0 ||
+            aliasCompactNameCandidates.size > 0 ||
+            domainCandidates.size > 0
+    };
+}
+
+function addExactNameCandidate(nameCandidates, compactNameCandidates, rawName) {
+    const normalized = normalizeNodeLabel(rawName);
+    if (!normalized) {
+        return;
+    }
+    nameCandidates.add(normalized);
+    const compactNormalized = toCompactLabel(normalized);
+    if (compactNormalized) {
+        compactNameCandidates.add(compactNormalized);
+    }
+}
+
+function addAliasCandidate(nameCandidates, compactNameCandidates, rawAlias) {
+    const normalized = normalizeNodeLabel(rawAlias);
+    if (!normalized) {
+        return;
+    }
+    nameCandidates.add(normalized);
+    const compactNormalized = toCompactLabel(normalized);
+    if (compactNormalized) {
+        compactNameCandidates.add(compactNormalized);
+    }
+}
+
+function addDomainCandidate(domainCandidates, rawDomain) {
+    const normalized = normalizeDomain(rawDomain);
+    if (normalized) {
+        domainCandidates.add(normalized);
+    }
+}
+
+function isFocusCompanyNode(node, focusMatcher) {
+    if (!node || !focusMatcher?.hasCandidates) {
+        return false;
+    }
+
+    const nodeDomain = normalizeDomain(node.companyDomain);
+    if (nodeDomain && focusMatcher.domainCandidates.has(nodeDomain)) {
+        return true;
+    }
+
+    const normalizedLabel = normalizeNodeLabel(node?.label);
+    const compactLabel = toCompactLabel(normalizedLabel);
+    if (matchesExactNameCandidates(normalizedLabel, compactLabel, focusMatcher)) {
+        return true;
+    }
+    if (matchesAliasCandidates(normalizedLabel, compactLabel, focusMatcher)) {
+        return true;
+    }
+
+    const normalizedAccountType = normalizeNodeLabel(node?.accountType);
+    const compactAccountType = toCompactLabel(normalizedAccountType);
+    if (matchesExactNameCandidates(normalizedAccountType, compactAccountType, focusMatcher)) {
+        return true;
+    }
+    return matchesAliasCandidates(
+        normalizedAccountType,
+        compactAccountType,
+        focusMatcher
+    );
+}
+
+function matchesExactNameCandidates(normalizedValue, compactValue, focusMatcher) {
+    if (!normalizedValue && !compactValue) {
+        return false;
+    }
+
+    if (
+        normalizedValue &&
+        focusMatcher.exactNameCandidates.has(normalizedValue)
+    ) {
+        return true;
+    }
+
+    return (
+        !!compactValue &&
+        focusMatcher.exactCompactNameCandidates.has(compactValue)
+    );
+}
+
+function matchesAliasCandidates(normalizedValue, compactValue, focusMatcher) {
+    if (!normalizedValue && !compactValue) {
+        return false;
+    }
+
+    if (normalizedValue) {
+        for (const aliasCandidate of focusMatcher.aliasNameCandidates) {
+            if (normalizedValue === aliasCandidate) {
+                return true;
+            }
+            if (
+                aliasCandidate.length >= 2 &&
+                normalizedValue.includes(aliasCandidate)
+            ) {
+                return true;
+            }
+        }
+    }
+
+    if (compactValue) {
+        for (const compactAliasCandidate of focusMatcher.aliasCompactNameCandidates) {
+            if (compactValue === compactAliasCandidate) {
+                return true;
+            }
+            if (
+                compactAliasCandidate.length >= 2 &&
+                compactValue.includes(compactAliasCandidate)
+            ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function normalizeDomain(rawValue) {
+    const normalized = String(rawValue || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '');
+    if (!normalized) {
+        return '';
+    }
+    const slashIndex = normalized.indexOf('/');
+    return slashIndex > -1 ? normalized.slice(0, slashIndex) : normalized;
+}
+
+function toCompactLabel(rawValue) {
+    if (!rawValue) {
+        return '';
+    }
+    return String(rawValue)
+        .trim()
+        .toLowerCase()
+        .replace(/[\s/|,;:()（）\-_.]+/g, '');
+}
+
+function hasCjkCharacters(rawValue) {
+    return /[\u3400-\u9FFF]/.test(String(rawValue || ''));
+}
+
+function normalizeNodeLabel(label) {
+    return String(label || '')
+        .trim()
+        .toLowerCase();
+}
+
+function normalizeNodeId(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase();
 }
 
 function isCompetitorNode(node) {

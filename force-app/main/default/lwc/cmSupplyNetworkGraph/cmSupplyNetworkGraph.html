@@ -5,33 +5,44 @@
         <div class="toolbar-left">
           <div class="toolbar-filter-col">
             <lightning-combobox
-              name="graphFilter"
-              label="View"
-              value={selectedFilter}
-              options={filterOptions}
-              onchange={handleFilterChange}
-            >
-            </lightning-combobox>
+              label={i18n.formLabels.supplyScenario}
+              value={selectedSupplyScenario}
+              options={supplyScenarioOptions}
+              onchange={handleSupplyScenarioChange}
+              disabled={isBusy}
+            ></lightning-combobox>
           </div>
         </div>
-
         <div class="toolbar-right">
           <div
             class="toolbar-action-list"
             role="group"
-            aria-label="Supply network actions"
+            aria-label={i18n.aria.supplyNetworkActions}
           >
             <button
               class="toolbar-action-list-button"
               type="button"
-              onclick={handleSmartBuild}
+              onclick={handleSmartBuildFullRebuild}
               disabled={disableSmartBuildAction}
-              title="智能建立"
-              aria-label="智能建立"
+              title={i18n.actions.smartBuildFullRebuild}
+              aria-label={i18n.actions.smartBuildFullRebuild}
             >
               <span class="ai-action-label">
                 <span class="ai-action-icon" aria-hidden="true">✦</span>
-                <span>智能建立</span>
+                <span>{i18n.actions.smartBuildFullRebuild}</span>
+              </span>
+            </button>
+            <button
+              class="toolbar-action-list-button"
+              type="button"
+              onclick={handleSmartBuildUpsert}
+              disabled={disableSmartBuildAction}
+              title={i18n.actions.smartBuildUpsert}
+              aria-label={i18n.actions.smartBuildUpsert}
+            >
+              <span class="ai-action-label">
+                <span class="ai-action-icon" aria-hidden="true">✦</span>
+                <span>{i18n.actions.smartBuildUpsert}</span>
               </span>
             </button>
             <button
@@ -39,86 +50,86 @@
               type="button"
               onclick={handleAnalyzeWncImpact}
               disabled={disableImpactAnalysisAction}
-              title="供應鏈分析"
-              aria-label="供應鏈分析"
+              title={i18n.actions.analyzeSupplyChain}
+              aria-label={i18n.actions.analyzeSupplyChain}
             >
               <span class="ai-action-label">
                 <span class="ai-action-icon" aria-hidden="true">✦</span>
-                <span>供應鏈分析</span>
+                <span>{i18n.actions.analyzeSupplyChain}</span>
               </span>
             </button>
             <button
               class="toolbar-action-list-button"
               type="button"
               onclick={handleOpenManualManager}
-              title="手動建立關聯"
-              aria-label="手動建立關聯"
+              title={i18n.actions.openManualManager}
+              aria-label={i18n.actions.openManualManager}
             >
-              手動建立關聯
+              {i18n.actions.openManualManager}
             </button>
           </div>
           <div
             class="toolbar-icon-group"
             role="group"
-            aria-label="Graph canvas actions"
+            aria-label={i18n.aria.graphCanvasActions}
           >
             <button
               class="toolbar-icon-button"
               type="button"
               onclick={handleZoomOut}
-              disabled={isBusy}
-              title="縮小關係圖"
-              aria-label="縮小關係圖"
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.zoomOutGraph}
+              aria-label={i18n.actions.zoomOutGraph}
             >
               <lightning-icon
                 class="toolbar-action-icon"
                 icon-name="utility:dash"
                 size="x-small"
-                alternative-text="Zoom out"
+                alternative-text={i18n.altText.zoomOut}
               ></lightning-icon>
             </button>
             <button
               class="toolbar-icon-button"
               type="button"
               onclick={handleFitGraph}
-              disabled={isBusy}
-              title="置中並適應視窗"
-              aria-label="置中並適應視窗"
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.fitGraph}
+              aria-label={i18n.actions.fitGraph}
             >
               <lightning-icon
                 class="toolbar-action-icon"
                 icon-name="utility:move"
                 size="x-small"
-                alternative-text="Fit graph"
+                alternative-text={i18n.altText.fitGraph}
               ></lightning-icon>
             </button>
             <button
               class="toolbar-icon-button"
               type="button"
               onclick={handleZoomIn}
-              disabled={isBusy}
-              title="放大關係圖"
-              aria-label="放大關係圖"
+              disabled={disableViewportZoomActions}
+              title={i18n.actions.zoomInGraph}
+              aria-label={i18n.actions.zoomInGraph}
             >
               <lightning-icon
                 class="toolbar-action-icon"
                 icon-name="utility:add"
                 size="x-small"
-                alternative-text="Zoom in"
+                alternative-text={i18n.altText.zoomIn}
               ></lightning-icon>
             </button>
             <button
               class="toolbar-icon-button"
               type="button"
               onclick={handleToggleGraphFullscreen}
-              title="切換全螢幕"
-              aria-label="切換全螢幕"
+              title={i18n.actions.toggleFullscreen}
+              aria-label={i18n.actions.toggleFullscreen}
             >
               <lightning-icon
                 class="toolbar-action-icon"
                 icon-name="utility:expand"
                 size="x-small"
-                alternative-text="Toggle fullscreen"
+                alternative-text={i18n.altText.toggleFullscreen}
               ></lightning-icon>
             </button>
           </div>
@@ -134,7 +145,7 @@
               class="toolbar-action-icon"
               icon-name="utility:refresh"
               size="x-small"
-              alternative-text="Refresh graph"
+              alternative-text={i18n.altText.refreshGraph}
             ></lightning-icon>
           </button>
         </div>
@@ -143,12 +154,8 @@
 
     <template if:true={isTruncated}>
       <div class="truncation-note slds-p-horizontal_small">
-        Showing first {nodeCount} nodes (capped for performance).
+        {truncationNote}
       </div>
-    </template>
-
-    <template if:true={coverageNote}>
-      <div class="state-message info">{coverageNote}</div>
     </template>
 
     <template if:true={errorMessage}>
@@ -156,15 +163,13 @@
     </template>
 
     <template if:true={showEmptyState}>
-      <div class="state-message subtle">目前沒有可顯示的上下游關係資料。</div>
+      <div class="state-message subtle">{i18n.messages.emptyState}</div>
     </template>
 
     <template if:true={showWncImpactAnalysis}>
       <div class="state-message impact">
         <div class="impact-title-row">
-          <span class="impact-title"
-            >WNC 影響分析（{wncImpactLevelLabel}）</span
-          >
+          <span class="impact-title">{impactAnalysisHeading}</span>
           <template if:true={hasWncImpactContext}>
             <span class="impact-context">{wncImpactContextLabel}</span>
           </template>
@@ -188,14 +193,18 @@
         <template if:true={showExpandedWncImpactDetails}>
           <template if:true={hasWncImpactOverallAssessment}>
             <div class="impact-section">
-              <div class="impact-section-title">Overall Assessment</div>
+              <div class="impact-section-title">
+                {i18n.impactSections.overallAssessment}
+              </div>
               <div class="impact-body">{wncImpactOverallAssessment}</div>
             </div>
           </template>
 
           <template if:true={hasWncImpactRisks}>
             <div class="impact-section">
-              <div class="impact-section-title">Key Risks</div>
+              <div class="impact-section-title">
+                {i18n.impactSections.keyRisks}
+              </div>
               <template for:each={wncImpactRiskRows} for:item="risk">
                 <div key={risk.key} class="impact-risk-item">
                   <template if:true={risk.title}>
@@ -214,7 +223,9 @@
 
           <template if:true={hasWncImpactPositiveSignals}>
             <div class="impact-section">
-              <div class="impact-section-title">Positive Signals</div>
+              <div class="impact-section-title">
+                {i18n.impactSections.positiveSignals}
+              </div>
               <template
                 for:each={wncImpactPositiveSignalRows}
                 for:item="signal"
@@ -228,7 +239,9 @@
 
           <template if:true={hasWncImpactRecommendedActions}>
             <div class="impact-section">
-              <div class="impact-section-title">Recommended Actions</div>
+              <div class="impact-section-title">
+                {i18n.impactSections.recommendedActions}
+              </div>
               <template
                 for:each={wncImpactRecommendedActionRows}
                 for:item="action"
@@ -242,32 +255,30 @@
         </template>
       </div>
       <template if:true={wncImpactGeneratedAtLabel}>
-        <div class="state-message subtle">
-          WNC Analysis updated: {wncImpactGeneratedAtLabel}
-        </div>
+        <div class="state-message subtle">{wncImpactGeneratedAtText}</div>
       </template>
     </template>
 
     <div class="legend slds-p-horizontal_small slds-p-bottom_x-small">
       <span class="legend-item">
         <span class="legend-swatch role-design"></span>
-        IC Design
+        {i18n.legend.icDesign}
       </span>
       <span class="legend-item">
         <span class="legend-swatch role-manufacturing"></span>
-        Manufacturing
+        {i18n.legend.manufacturing}
       </span>
       <span class="legend-item">
         <span class="legend-swatch role-channel"></span>
-        Channel / ODM
+        {i18n.legend.channelOdm}
       </span>
       <span class="legend-item">
         <span class="legend-swatch role-customer"></span>
-        End Customers
+        {i18n.legend.endCustomers}
       </span>
       <span class="legend-item">
         <span class="legend-swatch role-competitor"></span>
-        Competitors
+        {i18n.legend.competitors}
       </span>
     </div>
 
@@ -286,7 +297,7 @@
             class="graph-expand-icon"
             icon-name={laneExpandButtonIconName}
             size="x-small"
-            alternative-text="Toggle lane expand mode"
+            alternative-text={i18n.altText.toggleLaneExpandMode}
           ></lightning-icon>
         </button>
       </template>
@@ -307,21 +318,21 @@
       <template if:true={showGraphSpinner}>
         <div class="graph-loading-overlay">
           <lightning-spinner
-            alternative-text="Loading supply network graph"
+            alternative-text={i18n.altText.loadingSupplyNetworkGraph}
             size="small"
           ></lightning-spinner>
         </div>
       </template>
 
       <template if:true={generatedAtLabel}>
-        <div class="graph-updated-badge">Last updated: {generatedAtLabel}</div>
+        <div class="graph-updated-badge">{graphUpdatedText}</div>
       </template>
 
       <div class="node-tooltip" data-id="node-tooltip" role="tooltip">
         <div class="node-tooltip-title" data-id="tooltip-title"></div>
         <div class="node-tooltip-meta">
           <span class="node-tooltip-label" data-id="tooltip-meta-label"
-            >Role</span
+            >{i18n.tooltips.role}</span
           >
           <span data-id="tooltip-role"></span>
         </div>
@@ -332,26 +343,26 @@
     <template if:true={showManualRelationshipManager}>
       <section class="manual-panel slds-m-horizontal_small slds-m-bottom_small">
         <div class="manual-panel-header">
-          <h3 class="slds-text-heading_small">Manual Relationship Manager</h3>
-          <p class="manual-panel-subtitle">
-            在手動模式下維護 Root Account 的上下游與競爭關係。
-          </p>
+          <h3 class="slds-text-heading_small">{i18n.manualManager.title}</h3>
+          <p class="manual-panel-subtitle">{manualManagerSubtitle}</p>
         </div>
 
         <div class="manual-panel-sections">
           <section class="manual-section manual-section-list">
-            <h4 class="manual-section-title">Relationship Table</h4>
+            <h4 class="manual-section-title">
+              {i18n.manualManager.relationshipTableTitle}
+            </h4>
             <div class="manual-list">
               <template if:true={isManualLoading}>
                 <lightning-spinner
-                  alternative-text="Loading manual relationships"
+                  alternative-text={i18n.altText.loadingManualRelationships}
                   size="small"
                 ></lightning-spinner>
               </template>
 
               <template if:true={manualRelationshipsEmpty}>
                 <div class="state-message subtle">
-                  目前沒有手動關係。可先建立第一筆關係。
+                  {i18n.messages.noManualRelationships}
                 </div>
               </template>
 
@@ -362,14 +373,15 @@
                   >
                     <thead>
                       <tr class="slds-line-height_reset">
-                        <th scope="col">Status</th>
-                        <th scope="col">方向</th>
-                        <th scope="col">層級</th>
-                        <th scope="col">對象 Account</th>
-                        <th scope="col">Relation Type</th>
-                        <th scope="col">Source</th>
-                        <th scope="col">Updated</th>
-                        <th scope="col">Action</th>
+                        <th scope="col">{i18n.tableHeaders.status}</th>
+                        <th scope="col">{i18n.tableHeaders.direction}</th>
+                        <th scope="col">{i18n.tableHeaders.level}</th>
+                        <th scope="col">{i18n.tableHeaders.relatedAccount}</th>
+                        <th scope="col">{i18n.tableHeaders.scenario}</th>
+                        <th scope="col">{i18n.tableHeaders.relationType}</th>
+                        <th scope="col">{i18n.tableHeaders.source}</th>
+                        <th scope="col">{i18n.tableHeaders.updated}</th>
+                        <th scope="col">{i18n.tableHeaders.action}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -396,6 +408,7 @@
                               <span>{row.relatedAccountName}</span>
                             </template>
                           </td>
+                          <td>{row.supplyScenarioLabel}</td>
                           <td>{row.relationType}</td>
                           <td>{row.sourceTypeLabel}</td>
                           <td>{row.updatedLabel}</td>
@@ -403,22 +416,32 @@
                             <template if:true={row.isActive}>
                               <lightning-button-icon
                                 icon-name="utility:block_visitor"
-                                alternative-text="Deactivate"
-                                title="Deactivate"
+                                alternative-text={i18n.actions.deactivate}
+                                title={i18n.actions.deactivate}
                                 data-relationship-id={row.id}
                                 onclick={handleDeactivateRelationship}
                                 disabled={disableRelationshipActions}
                               ></lightning-button-icon>
                             </template>
                             <template if:false={row.isActive}>
-                              <lightning-button-icon
-                                icon-name="utility:check"
-                                alternative-text="Activate"
-                                title="Activate"
-                                data-relationship-id={row.id}
-                                onclick={handleActivateRelationship}
-                                disabled={disableRelationshipActions}
-                              ></lightning-button-icon>
+                              <div class="manual-row-actions">
+                                <lightning-button-icon
+                                  icon-name="utility:check"
+                                  alternative-text={i18n.actions.activate}
+                                  title={i18n.actions.activate}
+                                  data-relationship-id={row.id}
+                                  onclick={handleActivateRelationship}
+                                  disabled={disableRelationshipActions}
+                                ></lightning-button-icon>
+                                <lightning-button-icon
+                                  icon-name="utility:delete"
+                                  alternative-text={i18n.actions.delete}
+                                  title={i18n.actions.delete}
+                                  data-relationship-id={row.id}
+                                  onclick={handleDeleteRelationship}
+                                  disabled={disableRelationshipActions}
+                                ></lightning-button-icon>
+                              </div>
                             </template>
                           </td>
                         </tr>
@@ -431,11 +454,13 @@
           </section>
 
           <section class="manual-section manual-section-form">
-            <h4 class="manual-section-title">Create Relationship</h4>
+            <h4 class="manual-section-title">
+              {i18n.manualManager.createRelationshipTitle}
+            </h4>
             <div class="manual-form-grid">
               <div class="manual-form-col">
                 <lightning-combobox
-                  label="建立類型"
+                  label={i18n.formLabels.mode}
                   value={relationshipFormMode}
                   options={relationshipModeOptions}
                   onchange={handleRelationshipModeChange}
@@ -443,7 +468,7 @@
                 ></lightning-combobox>
 
                 <lightning-record-picker
-                  label="對象 Account"
+                  label={i18n.formLabels.relatedAccount}
                   object-api-name="Account"
                   value={relationshipFormRelatedAccountId}
                   onchange={handleRelatedAccountChange}
@@ -451,7 +476,7 @@
                 ></lightning-record-picker>
 
                 <lightning-input
-                  label="Relation Type"
+                  label={i18n.formLabels.relationType}
                   data-field="relationType"
                   value={relationshipFormRelationType}
                   onchange={handleRelationshipFieldChange}
@@ -459,18 +484,28 @@
                 ></lightning-input>
 
                 <lightning-combobox
-                  label="Source Type"
+                  label={i18n.formLabels.sourceType}
                   data-field="sourceType"
                   value={relationshipFormSourceType}
                   options={sourceTypeOptions}
                   onchange={handleRelationshipFieldChange}
                   disabled={disableRelationshipFormInputs}
                 ></lightning-combobox>
+
+                <lightning-combobox
+                  label={i18n.formLabels.supplyScenario}
+                  data-field="supplyScenario"
+                  value={relationshipFormSupplyScenario}
+                  options={manualSupplyScenarioOptions}
+                  onchange={handleRelationshipFieldChange}
+                  disabled={disableRelationshipFormInputs}
+                  required
+                ></lightning-combobox>
               </div>
 
               <div class="manual-form-col">
                 <lightning-input
-                  label="Role"
+                  label={i18n.formLabels.role}
                   data-field="role"
                   value={relationshipFormRole}
                   onchange={handleRelationshipFieldChange}
@@ -478,7 +513,7 @@
                 ></lightning-input>
 
                 <lightning-textarea
-                  label="Products"
+                  label={i18n.formLabels.products}
                   data-field="products"
                   value={relationshipFormProducts}
                   onchange={handleRelationshipFieldChange}
@@ -486,7 +521,7 @@
                 ></lightning-textarea>
 
                 <lightning-textarea
-                  label="Evidence"
+                  label={i18n.formLabels.evidence}
                   data-field="evidence"
                   value={relationshipFormEvidence}
                   onchange={handleRelationshipFieldChange}
@@ -497,13 +532,13 @@
 
             <div class="manual-form-actions">
               <lightning-button
-                label="Create Relationship"
+                label={i18n.actions.createRelationship}
                 variant="brand"
                 onclick={handleCreateRelationship}
                 disabled={disableRelationshipCreate}
               ></lightning-button>
               <lightning-button
-                label="Reset"
+                label={i18n.actions.reset}
                 variant="neutral"
                 onclick={handleResetRelationshipForm}
                 disabled={isSavingRelationship}

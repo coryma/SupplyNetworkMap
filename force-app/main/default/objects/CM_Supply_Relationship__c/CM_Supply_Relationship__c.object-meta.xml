@@ -1,19 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <deploymentStatus>Deployed</deploymentStatus>
-    <description>Manual supply-chain edges used by CM Supply Network Graph.</description>
-    <enableActivities>false</enableActivities>
-    <enableBulkApi>true</enableBulkApi>
-    <enableFeeds>false</enableFeeds>
-    <enableHistory>false</enableHistory>
-    <enableReports>true</enableReports>
-    <enableSearch>true</enableSearch>
-    <label>CM Supply Relationship</label>
-    <nameField>
-        <displayFormat>CMR-{000000}</displayFormat>
-        <label>Relationship Number</label>
-        <type>AutoNumber</type>
-    </nameField>
-    <pluralLabel>CM Supply Relationships</pluralLabel>
-    <sharingModel>ReadWrite</sharingModel>
-</CustomObject>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata"></CustomObject>
